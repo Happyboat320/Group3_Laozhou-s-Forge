@@ -1,43 +1,45 @@
-﻿// 走查脚本：连上本机已经在跑的 Chrome（--remote-debugging-port=9222），
-// 选一种玩法，从封面一路玩到结算，每个阶段截一张图到 shots/<玩法>/。
-// 用法：node verify/tour.mjs [timing|rhythm|heat]
+// 走查脚本：自己开 dev server，用本机 Chrome 无头跑一局完整流程，每个关键场景截图到 shots/tour/。
+// 用法：node verify/tour.mjs            单曲：选歌 → 难度 → 打一首 → 结算 → 卖装备
+//       node verify/tour.mjs challenge  挑战：随机抽三首连打 → 总分上榜 → 保底传说
 // 只用于开发自检，不参与打包。
 import { mkdir, rm } from 'node:fs/promises';
 import { chromium } from 'playwright-core';
 import { createServer } from 'vite';
 
-const MODE = process.argv[2] ?? 'timing';
-const MODE_KEY = { timing: 'Digit1', rhythm: 'Digit2', heat: 'Digit3' }[MODE];
-const MODE_SCENE = { timing: 'forge', rhythm: 'rhythm', heat: 'heat' }[MODE];
-if (!MODE_KEY) {
-  console.error('用法：node verify/tour.mjs [timing|rhythm|heat]');
-  process.exit(1);
-}
-
+const MODE = process.argv[2] === 'challenge' ? 'challenge' : 'single';
 const OUT = `shots/${MODE}`;
 await rm(OUT, { recursive: true, force: true });
 await mkdir(OUT, { recursive: true });
 
-const PORT = 5199 + Math.max(0, ['timing', 'rhythm', 'heat'].indexOf(MODE));
+const PORT = MODE === 'challenge' ? 5291 : 5290;
 const server = await createServer({ logLevel: 'error', server: { port: PORT, host: '127.0.0.1', open: false } });
 await server.listen();
 const url = `${server.resolvedUrls.local[0]}?shot`;
 
-const browser = await chromium.connectOverCDP('http://127.0.0.1:9222');
-const context = browser.contexts()[0] ?? (await browser.newContext());
-const page = await context.newPage();
-await page.setViewportSize({ width: 1280, height: 720 });
-await page.bringToFront();
+async function launch() {
+  const args = ['--ignore-gpu-blocklist', '--enable-unsafe-swiftshader', '--autoplay-policy=no-user-gesture-required'];
+  for (const channel of ['chrome', 'msedge']) {
+    try {
+      return await chromium.launch({ channel, headless: true, args });
+    } catch {
+      // 试下一个浏览器
+    }
+  }
+  throw new Error('没找到 Chrome 或 Edge');
+}
 
+const browser = await launch();
+const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 const errors = [];
 page.on('console', (m) => {
-  if (m.type() === 'error') errors.push(`[console] ${m.text()}`);
+  const text = m.text();
+  // headless 下 WebGL 的性能提示不是报错
+  if (text.includes('GL Driver Message') || text.startsWith('Failed to load resource')) return;
+  if (m.type() === 'error') errors.push(`[console] ${text}`);
 });
 page.on('pageerror', (e) => errors.push(`[pageerror] ${e.message}`));
 
 let shotIndex = 0;
-let presses = 0;
-
 async function snap(label) {
   shotIndex += 1;
   const file = `${OUT}/${String(shotIndex).padStart(2, '0')}-${label}.png`;
@@ -49,69 +51,40 @@ const read = () =>
   page.evaluate(() => ({
     scene: globalThis.__game?.sceneName ?? '',
     debug: globalThis.__game?.debug?.() ?? null,
-    game: globalThis.__game ? JSON.parse(JSON.stringify(globalThis.__game.game)) : null,
+    progress: globalThis.__game ? JSON.parse(JSON.stringify(globalThis.__game.game.progress)) : null,
+    session: globalThis.__game ? JSON.parse(JSON.stringify(globalThis.__game.game.session)) : null,
   }));
 
-const press = async (code = 'Space') => {
-  presses += 1;
-  await page.evaluate((c) => {
+const press = (code = 'Space') =>
+  page.evaluate((c) => {
     window.dispatchEvent(new KeyboardEvent('keydown', { code: c, key: ' ', bubbles: true }));
     window.dispatchEvent(new KeyboardEvent('keyup', { code: c, key: ' ', bubbles: true }));
   }, code);
-};
 
-async function waitScene(name, timeout = 20000) {
-  await page.waitForFunction((n) => globalThis.__game?.sceneName === n, name, { timeout });
-}
+const waitScene = (name, timeout = 30000) =>
+  page.waitForFunction((n) => globalThis.__game?.sceneName === n, name, { timeout });
 
-/** 在页面里挂一个自动驾驶：按每种玩法的规则出手，比来回通信快，也打得更准。 */
-async function startAutoPlay() {
-  await page.evaluate(() => {
+/** 自动驾驶：音符快到线时按 A S D F。 */
+const startAuto = () =>
+  page.evaluate(() => {
     window.__auto = true;
+    const KEYS = ['KeyA', 'KeyS', 'KeyD', 'KeyF'];
     const tap = (code) => {
       window.dispatchEvent(new KeyboardEvent('keydown', { code, key: ' ', bubbles: true }));
       window.dispatchEvent(new KeyboardEvent('keyup', { code, key: ' ', bubbles: true }));
     };
-    let lastHeat = 0;
-
     const tick = () => {
       if (!window.__auto) return;
-      const d = window.__game?.debug?.();
-      if (d) {
-        // 时机玩法：指针进中心就落手
-        if (d.scene === 'forge' && d.phase && d.phase !== 'result' && d.phase !== 'hint' && Math.abs(d.pos) <= 0.08) {
-          tap('Space');
-        }
-        // 节奏玩法：音符快到线时按对应的方向键
-        if (d.scene === 'rhythm' && Array.isArray(d.group)) {
-          for (const g of d.group) {
-            if (Math.abs(g.dt) <= 0.05) tap(['ArrowLeft', 'ArrowDown', 'ArrowRight'][g.lane]);
-          }
-        }
-        // 火候玩法：躲坏的、靠好的
-        if (d.scene === 'heat' && Array.isArray(d.drops)) {
-          const now = performance.now();
-          if (now - lastHeat > 130) {
-            lastHeat = now;
-            const danger = (lane) => d.drops.some((x) => x.bad && x.lane === lane && x.y > 330 && x.y < 690);
-            const treat = (lane) => d.drops.some((x) => !x.bad && x.lane === lane && x.y > 280 && x.y < 730);
-            let target = d.lane;
-            if (danger(d.lane)) {
-              const safe = [d.lane - 1, d.lane + 1, d.lane - 2, d.lane + 2].filter((l) => l >= 0 && l < 5 && !danger(l));
-              if (safe.length) target = safe[0];
-            } else if (!treat(d.lane)) {
-              const want = [0, 1, 2, 3, 4].filter((l) => treat(l) && !danger(l));
-              if (want.length) target = want.reduce((a, b) => (Math.abs(b - d.lane) < Math.abs(a - d.lane) ? b : a), want[0]);
-            }
-            if (target !== d.lane) tap(target < d.lane ? 'ArrowLeft' : 'ArrowRight');
-          }
-        }
+      const d = globalThis.__game?.debug?.();
+      if (d && d.scene === 'play' && Array.isArray(d.group)) {
+        for (const g of d.group) if (Math.abs(g.dt) <= 0.05) tap(KEYS[g.lane] ?? 'KeyA');
       }
       requestAnimationFrame(tick);
     };
     tick();
   });
-}
+
+const stopAuto = () => page.evaluate(() => { window.__auto = false; });
 
 try {
   await page.goto(url);
@@ -120,114 +93,90 @@ try {
   await page.waitForFunction(() => globalThis.__game?.sceneName, null, { timeout: 30000 });
 
   await waitScene('title');
-  await page.waitForTimeout(800);
+  await page.waitForTimeout(700);
   await snap('title');
-  await press();
 
-  await waitScene('mode');
-  await page.waitForTimeout(900);
-  await snap('mode');
-  await press(MODE_KEY);
+  if (MODE === 'challenge') {
+    await press('KeyC');
+    await waitScene('challenge');
+    await page.waitForTimeout(700);
+    await snap('challenge');
+    await press();
+  } else {
+    await press();
+    await waitScene('songs');
+    await page.waitForTimeout(1000);
+    await snap('songs');
+    await press('Digit1');
+    await waitScene('difficulty');
+    await page.waitForTimeout(600);
+    await snap('difficulty');
+    await press('Digit2'); // 普通难度
+  }
 
-  await waitScene('shop');
-  await page.waitForTimeout(900);
-  await snap('shop');
-  await startAutoPlay();
-  await press();
-  await waitScene(MODE_SCENE);
+  await waitScene('play');
+  await startAuto();
 
-  const seen = new Set();
-  const perOrder = new Map();
-  let done = false;
+  let plays = 0;
   let guard = 0;
-
-  while (!done && guard < 4000) {
+  while (guard < 6000) {
     guard += 1;
     const s = await read();
-    const d = s.debug;
 
-    if (s.scene === 'shop') {
+    if (s.scene === 'play') {
+      plays += 1;
+      if (plays === 1) {
+        await page.waitForTimeout(2600); // 等音符落下来
+        await snap('play');
+      }
       await page.waitForTimeout(500);
-      await snap(`shop-${s.game.orderIndex + 1}`);
-      await press();
-      await page.waitForTimeout(350);
       continue;
     }
 
-    if (s.scene === 'dayend') {
+    if (s.scene === 'settle') {
+      await page.waitForTimeout(1400);
+      await snap('settle');
+      // 点「卖出」（左按钮），单曲和挑战都是这个位置
+      await page.mouse.click(462, 652);
+      await page.waitForTimeout(1200);
+      const after = await read();
+      if (after.scene === 'play') {
+        // 挑战的下一首
+        continue;
+      }
       await page.waitForTimeout(800);
-      await snap('dayend');
-      await press();
-      await page.waitForTimeout(500);
-      continue;
-    }
-
-    if (s.scene === MODE_SCENE && d) {
-      if (d.phase === 'hint') {
-        if (!seen.has('hint')) {
-          await page.waitForTimeout(400);
-          await snap('hint');
-          seen.add('hint');
-        }
-        await press();
-        await page.waitForTimeout(450);
-        continue;
-      }
-
-      if (d.done || d.phase === 'result') {
-        const key = `delivery-${s.game.orderIndex}`;
-        if (!seen.has(key)) {
-          await page.waitForTimeout(800);
-          await snap('delivery');
-          seen.add(key);
-        }
-        await press();
-        await page.waitForTimeout(450);
-        continue;
-      }
-
-      const orderKey = `play-${s.game.orderIndex}`;
-      if (!seen.has(orderKey)) {
-        seen.add(orderKey);
-        await page.waitForTimeout(1200);
-        await snap(`play-${MODE}`);
-      }
-      await page.waitForTimeout(180);
-      continue;
-    }
-
-    if (s.scene === 'result') {
-      await page.waitForTimeout(900);
-      await snap('result');
-      done = true;
+      await snap(`after-${after.scene}`);
       break;
     }
 
-    await page.waitForTimeout(90);
+    if (s.scene === 'songs' || s.scene === 'challenge') {
+      await page.waitForTimeout(600);
+      await snap(`end-${s.scene}`);
+      break;
+    }
+
+    await page.waitForTimeout(150);
   }
 
-  await page.evaluate(() => {
-    window.__auto = false;
-  });
-
-  const final = await page.evaluate(() => ({
-    scene: globalThis.__game?.sceneName,
-    game: JSON.parse(JSON.stringify(globalThis.__game?.game ?? null)),
-  }));
-
+  await stopAuto();
+  const final = await read();
   console.log(`\n=== ${MODE} 走查结束 ===`);
-  console.log('场景：', final.scene, '　按键：', presses);
-  console.log('金币：', final.game?.coins, '　口碑：', final.game?.reputation, '　结束：', final.game?.endReason);
-  for (const h of final.game?.history ?? []) {
-    console.log(`  ${h.day}日 ${h.customerName} ${h.itemName} → ${h.grade} 分数 ${h.score ?? "-"} ${h.coins}文 ${h.rep >= 0 ? "+" : ""}${h.rep}${h.timedOut ? "（跑单）" : ""}`);
-  }
-  const missing = await page.evaluate(() => globalThis.__game.missing.length);
-  if (missing) console.log(`ℹ 还有 ${missing} 个素材文件没放（用占位）`);
+  console.log('结束场景：', final.scene, '　进入玩法次数：', plays);
+  console.log('金币：', final.progress?.coins, '　装备库：', final.progress?.inventory?.length);
+  console.log('排行榜：', JSON.stringify(final.progress?.leaderboard ?? []));
+  for (const [song, best] of Object.entries(final.progress?.best ?? {})) console.log(`  最好成绩 ${song}: ${JSON.stringify(best)}`);
+
+  // 结束后回标题，看装备库
+  await page.evaluate(() => globalThis.__game && window.__game.go('inventory'));
+  await page.waitForTimeout(900);
+  await snap('inventory');
+  await page.evaluate(() => window.__game.go('challenge'));
+  await page.waitForTimeout(900);
+  await snap('leaderboard');
 } finally {
-  await page.evaluate(() => {
-    window.__auto = false;
-  }).catch(() => {});
+  await stopAuto().catch(() => {});
   await page.close();
+  await browser.close();
   await server.close();
 }
 

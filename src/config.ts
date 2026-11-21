@@ -1,162 +1,99 @@
-﻿// 所有可调的数值都放这里，规则和场景都从这里读。加字段时直接加，类型会自动跟着变。
+// 所有可调的数值都放这里，规则和场景都从这里读。加字段时直接加，类型会自动跟着变。
 //
-// 调手感先改 forge.windows / forge.speed：
-//   windows 是判定窗口，数字是“指针离中心多远还能算完美/命中”，1 表示整条槽的端点。
-//   speed 是指针每秒往返几次，越大越难。
+// 调手感先改 rhythm.window（判定窗口）和 rhythm.approach（音符落下要几秒，越小越快）；
+// 调掉落先看 drop 的注释；歌曲解锁价格在 songs[].price。
+import type { Difficulty } from './core/rhythm';
+
 export const CONFIG = {
   view: { width: 1280, height: 720 },
   saveKey: 'laozhou-forge-v1',
 
-  game: {
-    startCoins: 0,
-    startReputation: 50,
-    maxReputation: 100,
-    /** 三天结束时口碑达到这个数，老周才传手艺。 */
-    winReputation: 60,
+  /** 节奏玩法：四条轨道竖直下落，A S D F 对应左→右。 */
+  rhythm: {
+    lanes: 4,
+    /** 判定线的 y（铁块上方这条线） */
+    hitLineY: 552,
+    /** 音符从多高开始落下 */
+    spawnY: -60,
+    laneGap: 118,
+    /** 判定窗口，单位秒 */
+    window: { perfect: 0.085, good: 0.17 },
+    /** 一次判定值多少分：完美 / 不错 / 落空。准确率和掉落概率都按它算 */
+    value: { perfect: 1, good: 0.6, miss: 0 },
+    /** 音符从出现到落线要几秒，按难度分 */
+    approach: { easy: 1.9, normal: 1.55, hard: 1.25 } satisfies Record<Difficulty, number>,
   },
 
-  forge: {
-    /** 每件器物要敲几锤。 */
-    strikes: 3,
-    /** 三个阶段各占品质分的比重，和为 1。 */
-    weight: { heat: 0.3, hits: 0.45, quench: 0.25 },
-    /** 品质分达到多少算哪一档。 */
-    grade: { legend: 0.87, fine: 0.66, common: 0.4 },
-    /** 一次判定值多少分：完美 / 命中 / 落空。 */
-    value: { perfect: 1, good: 0.6, miss: 0.15 },
-    /** 三天的判定难度：第 n 天用第 n 个，宽 1 是起点。 */
-    difficulty: [
-      { heat: { perfect: 0.24, good: 0.48 }, hit: { perfect: 0.2, good: 0.4 }, quench: { perfect: 0.16, good: 0.34 } },
-      { heat: { perfect: 0.21, good: 0.42 }, hit: { perfect: 0.175, good: 0.35 }, quench: { perfect: 0.14, good: 0.3 } },
-      { heat: { perfect: 0.18, good: 0.36 }, hit: { perfect: 0.15, good: 0.3 }, quench: { perfect: 0.12, good: 0.26 } },
+  /**
+   * 掉落概率分布：每高一档，权重再乘一次 f（f = 难度系数 × 分数系数）。
+   * 基准（普通难度、60~80% 准确率，f = 1）：凡品 52% / 良品 28% / 珍品 13% / 极品 5% / 传说 2%。
+   * 困难 + 90% 以上（f ≈ 2.19）：传说 ≈ 17%，极品 + 传说 ≈ 36%。
+   * 简单 + 60% 以下（f ≈ 0.61）：凡品 ≈ 69%，几乎不出极品以上。
+   */
+  drop: {
+    /** 五档品质的基准权重，从凡品到传说 */
+    base: [52, 28, 13, 5, 2],
+    /** 难度对 f 的乘数 */
+    difficultyFactor: { easy: 0.72, normal: 1, hard: 1.62 },
+    /** 准确率（0~1）对 f 的乘数，取第一个 min 以上的档 */
+    scoreFactor: [
+      { min: 0, f: 0.85 },
+      { min: 0.6, f: 1 },
+      { min: 0.8, f: 1.25 },
+      { min: 0.9, f: 1.35 },
     ],
-    /** 指针速度：每秒往返次数。 */
-    speed: { heat: 0.85, hit: 1.05, quench: 1.55 },
-    /** 每阶段指针起点的随机相位，0 表示每次都从中间开始。 */
-    phaseOffset: 0.35,
+    /** 每档品质卖出的价钱（文） */
+    sell: { common: 8, fine: 18, rare: 40, epic: 90, legend: 200 },
   },
 
-  pay: {
-    /** 按成色给钱，基数是订单报价。 */
-    multiplier: { scrap: 0.2, common: 1, fine: 1.4, legend: 2 },
-    /** 超出顾客要求时的额外加成。 */
-    bonusAboveWant: 1.2,
-    /** 口碑变化：达标 / 未达标 / 出废品 / 顾客等太久。 */
-    rep: { gain: 8, loss: 8, scrap: 12, timeout: 10 },
+  /** 挑战模式：系统随机抽三首连打，统一普通难度，总分上榜，保底一件随机传说装备。 */
+  challenge: {
+    songs: 3,
+    difficulty: 'normal' as Difficulty,
+    /** 排行榜留多少名 */
+    top: 10,
   },
 
-  /** 三种玩法各自的数值。判定阈值在 forge 里，这里放节奏和火候。 */
-  modes: {
-    rhythm: {
-      lanes: 3,
-      hitLineY: 566,
-      spawnY: 150,
-      laneGap: 132,
-      /** 一单打多久（秒），谱面按这个长度生成 */
-      duration: 30,
-      /** 判定窗口，单位秒 */
-      window: { perfect: 0.085, good: 0.17 },
-      /** 按天调：落线时间越短越快；gap 是两个音符之间隔多久；chord 是和弦（多键同时）的概率 */
-      days: [
-        { approach: 1.9, gap: 0.5, chord2: 0.1, chord3: 0 },
-        { approach: 1.55, gap: 0.44, chord2: 0.22, chord3: 0.06 },
-        { approach: 1.25, gap: 0.38, chord2: 0.32, chord3: 0.14 },
-      ],
-      /** 平均判定分到成色的分界线，和时机玩法不同，单独定 */
-      score: { legend: 0.8, fine: 0.55, common: 0.32 },
-    },
-    heat: {
-      lanes: 5,
-      laneGap: 118,
-      /** 一炉火烧多久（秒） */
-      duration: 30,
-      /** 每隔几秒落一样东西（还会上下浮动），越小越密 */
-      spawnEvery: 0.32,
-      /** 同一次掉落里再塞一个 / 再塞两个的概率 */
-      multiChance: { two: 0.18, three: 0.05 },
-      fallSpeed: 300,
-      /** 大小 1~5：宽度 = base + per × 大小；落速倍率同理 */
-      sizeWidth: { base: 42, per: 10 },
-      sizeSpeed: { base: 0.9, per: 0.045 },
-      /** 炉温：初始、每秒自然衰减、被砸掉多少、接住回多少（都乘大小） */
-      heat0: 70,
-      decay: 0.6,
-      badHeat: 1.15,
-      goodHeat: 0.35,
-      /** 干柴 +1~+5、木炭 +6~+10；水珠 -1~-5、蒸汽 -6~-10。full 是拿满分的分 */
-      score: { legend: 0.55, fine: 0.33, common: 0.16, full: 200 },
-    },
-  },
-
-  /** 六张订单：三天，每天两单。改这里就是改关卡。 */
-  orders: [
+  /** 曲库：一首歌对应一件装备。file 放在 assets/music/ 下，谱面在 assets/charts/ 下同名 .sm。 */
+  songs: [
     {
-      day: 1,
-      customer: 'char_woodcutter',
-      customerName: '樵夫',
-      item: 'item_knife',
-      itemName: '柴刀',
-      want: 'common',
-      price: 12,
-      patience: 50,
-      line: '上山用的柴刀，刃口别崩就行。',
+      id: 'inspiration',
+      title: 'Inspiration',
+      artist: 'FreePD',
+      file: 'assets/music/Inspiration.mp3',
+      equipment: 'item_sword',
+      equipName: '长剑',
+      /** 解锁价格（文），0 是默认解锁 */
+      price: 0,
     },
     {
-      day: 1,
-      customer: 'char_auntie',
-      customerName: '王婶',
-      item: 'item_hoe',
-      itemName: '锄头',
-      want: 'common',
-      price: 14,
-      patience: 50,
-      line: '菜园子翻土，轻省些的锄头。',
+      id: 'funshine',
+      title: 'Funshine',
+      artist: 'FreePD',
+      file: 'assets/music/Funshine.mp3',
+      equipment: 'item_horseshoe',
+      equipName: '马蹄铁',
+      price: 120,
     },
     {
-      day: 2,
-      customer: 'char_merchant',
-      customerName: '货郎',
-      item: 'item_horseshoe',
-      itemName: '马蹄铁',
-      want: 'fine',
-      price: 20,
-      patience: 46,
-      line: '跑远路的骡子，马蹄铁要经得住磨。',
+      id: 'beat-one',
+      title: 'Beat One',
+      artist: 'FreePD',
+      file: 'assets/music/BeatOne.mp3',
+      equipment: 'item_dagger',
+      equipName: '匕首',
+      price: 160,
     },
     {
-      day: 2,
-      customer: 'char_cook',
-      customerName: '厨娘',
-      item: 'item_sickle',
-      itemName: '镰刀',
-      want: 'fine',
-      price: 18,
-      patience: 46,
-      line: '后园割菜用，要快、要顺手。',
+      id: 'hit-n-smash',
+      title: 'Hit n Smash',
+      artist: 'FreePD',
+      file: 'assets/music/HitnSmash.mp3',
+      equipment: 'item_axe',
+      equipName: '战斧',
+      price: 220,
     },
-    {
-      day: 3,
-      customer: 'char_guard',
-      customerName: '镖师',
-      item: 'item_sword',
-      itemName: '长剑',
-      want: 'fine',
-      price: 30,
-      patience: 42,
-      line: '走镖的家伙，成色差了要出人命。',
-    },
-    {
-      day: 3,
-      customer: 'char_laozhou',
-      customerName: '老周',
-      item: 'item_dagger',
-      itemName: '匕首',
-      want: 'legend',
-      price: 40,
-      patience: 42,
-      line: '……我这把老骨头，想看看你打的东西。',
-    },
-  ] as const,
+  ],
 };
 
 export type Config = typeof CONFIG;

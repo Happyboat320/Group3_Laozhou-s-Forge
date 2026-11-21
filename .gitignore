@@ -1,8 +1,27 @@
+# 依赖与构建产物
 node_modules
 dist
 release
+
+# 自检脚本的产物（截图、浏览器配置、日志）
 shots
-.npm-cache
 .chrome-profile
 chrome-err.log
 tour.log
+*.log
+
+# npm 缓存
+.npm-cache
+
+# 系统与编辑器
+.DS_Store
+Thumbs.db
+.idea
+.vscode/*
+
+# 生图中间产物：2048px 原图（32MB），成品 webp 已缩好放在 images/item/ 下
+assets/images/item/_raw/
+
+# 临时文件
+*.tmp
+tmp/

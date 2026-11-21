@@ -23,7 +23,7 @@
 | 层 | 文件 | 规矩 |
 |---|---|---|
 | ① 规则（内核） | `src/core/` | 游戏状态 `GameState` 和规则函数，起步只有 `game.ts` 里的最小骨架，按你们的游戏换掉。只放纯逻辑。**不能用 `document`、`window`、Canvas、键盘、声音**。`state` 必须能转成 JSON（存档要用）。可以拆成多个文件，规矩相同 |
-| ② 操作 + ③ 表现 | `src/scenes/` | 读键盘和点击、画画面、放声音。一个场景一个文件，写好在 `src/scenes/index.ts` 登记；`title.ts` 是最小的一份，`shop.ts` 是带界面和状态的一份。**不要在这里写规则判定**，判定写进 core 再调用 |
+| ② 操作 + ③ 表现 | `src/scenes/` | 读键盘和点击、画画面、放声音。一个场景一个文件，写好在 `src/scenes/index.ts` 登记；`title.ts` 是最小的一份，`songs.ts` 是带界面和状态的一份。**不要在这里写规则判定**，判定写进 core 再调用 |
 | 数值 | `src/config.ts` | 所有可调的数字都放这里，规则和场景都从这里读，不要把数字写死在代码里 |
 | 框架 | `src/engine/`、`src/main.ts`、`tools/` | 一般不要改；确实要改时先说明原因，等用户同意 |
 
@@ -33,24 +33,25 @@
 
 ## 游戏结构
 
-已按 `GAME_CARD.md` 做完，四个场景串成一条线：
+现在是节奏打铁音游，流程：
 
-`title`（开炉 / 继续 / 怎么玩）→ `shop`（接单）→ `forge`（火候 → 三锤 → 淬火）→ 回 `shop` 或进 `result`（三天结算）。
+`title`（选歌 / 挑战 / 装备库）→ `songs`（选歌、解锁）→ `difficulty`（简单/普通/困难）→ `play`（打完整首歌）→ `settle`（成绩 + 按概率锻装备，卖出或入库）；挑战模式走 `challenge` → `play` × 3 → `settle`（总分上榜 + 保底传说）。
 
 - 场景之间用 `this.ctx.go('名字')` 切换，`src/scenes/index.ts` 里登记。
-- 游戏状态放在 `this.ctx.game`（`src/core/game.ts` 的 `GameState`）：六张订单、金币、口碑、当前第几单、历史交付。
-- 规则判定全在 `src/core/`：`forge.ts` 管判定窗口、品质分、成色、报酬与口碑；`game.ts` 管交付结算和输赢。场景只调用，不自己算。
-- 数值（判定窗口、指针速度、成色阈值、六张订单）全在 `src/config.ts`，改手感只改那里。
-- 存档用 `this.ctx.save.writeRun(this.ctx.game)`，封面上会出现「继续」；`this.ctx.save.recordScore(分数)` 记最高纪录。
-- 背景音乐在 `src/audio/bgm.ts`（WebAudio 现场合成，素材包里没有音频文件）；音效走 `src/engine/synth.ts` 的配方。
+- 游戏状态放在 `this.ctx.game`（`src/core/game.ts` 的 `GameState`）：`progress`（金币、解锁曲目、装备库、最好成绩、排行榜）+ `session`（当前这一局：单曲还是挑战、打哪首、难度、挑战抽到的三首）。
+- 规则判定全在 `src/core/`：`rhythm.ts` 判定与计分，`drop.ts` 掉落概率，`economy.ts` 金币/解锁/装备库，`game.ts` 对局流程，`sm.ts` 谱面解析。场景只调用，不自己算。
+- 数值（判定窗口、轨道布局、曲库与价格、掉落概率表、挑战参数）全在 `src/config.ts`。
+- 谱面在 `assets/charts/<id>.sm`（smlab 生成），歌曲在 `assets/music/`；`src/data/songs.ts` 负责读进来。
+- 存档用 `this.ctx.save.writeRun(this.ctx.game)`，存的就是整个 `GameState`（进度 + 对局）。
+- 菜单背景音乐在 `src/audio/bgm.ts`（WebAudio 合成）；打歌的音频在 `src/audio/track.ts`（按需加载 mp3 解码）；音效走 `src/engine/synth.ts` 的配方。
 
 ## 场景怎么写
 
-一个场景是一个继承 `BaseScene`（`src/engine/scenes.ts`）的类，用 Phaser 原生的写法。照着 `src/scenes/shop.ts` 写：
+一个场景是一个继承 `BaseScene`（`src/engine/scenes.ts`）的类，用 Phaser 原生的写法。照着 `src/scenes/songs.ts` 写：
 
 ```ts
-export class ShopScene extends BaseScene {
-  constructor() { super('shop'); }            // 场景名
+export class SongsScene extends BaseScene {
+  constructor() { super('songs'); }           // 场景名
   create() {                                  // 进入场景时搭画面
     this.background('bg_shop');
     const hero = this.art('char_apprentice_neutral', 640, 480, 200);

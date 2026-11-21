@@ -1,4 +1,5 @@
-﻿// 标题 / 欢迎页：小镇街景、招牌、两侧站着街坊。点街坊会换成开心表情跳一下。
+// 标题 / 欢迎页：小镇街景、招牌、两侧站着街坊。点街坊会换成开心表情跳一下。
+// 入口：选歌游玩 / 挑战模式 / 装备库 / 怎么玩。
 import Phaser from 'phaser';
 import { startBgm } from '../audio/bgm';
 import { BaseScene } from '../engine/scenes';
@@ -17,13 +18,13 @@ const FOLKS: [string, number, boolean][] = [
 ];
 
 const HOW_TO = [
-  '老周闪了腰，铺子交给你看三天，一天两单。',
+  '老周把铺子交给你：听着歌打铁，一锤一个音符。',
   '',
-  '① 接单：看顾客要什么器型、什么成色。',
-  '② 打造：火候 → 三锤 → 淬火，每次都在绿区按空格。',
-  '③ 交付：成色越好，钱越多，口碑越高。',
+  '① 选歌：一首歌锻一件装备，成绩越好越容易出高品质。',
+  '② 打铁：四条轨道的铁块落到线上时按 A S D F。',
+  '③ 装备：可以卖了换钱解锁新歌，也可以收进装备库。',
   '',
-  '口碑掉光就提前收摊；三天后口碑够高，老周才传手艺。',
+  '挑战模式：随机抽三首连打，总分上榜，必得一件传说装备。',
 ];
 
 export class TitleScene extends BaseScene {
@@ -46,33 +47,24 @@ export class TitleScene extends BaseScene {
     const logo = this.art('logo_title', 640, 138, 720);
     this.tweens.add({ targets: logo, y: 146, duration: 2200, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
 
-    let y = 336;
     this.button({
-      x: 640, y, label: '开炉（空格）', key: 'Space',
-      onClick: () => this.start(),
+      x: 640, y: 336, label: '选歌游玩（空格）', key: 'Space',
+      onClick: () => this.ctx.go('songs'),
     });
-    const run = this.ctx.save.run;
-    if (run) {
-      y += 92;
-      this.button({
-        x: 640, y, label: '继续（C）', key: 'KeyC', style: 'secondary',
-        onClick: () => {
-          this.ctx.game = run;
-          this.ctx.go('shop');
-        },
-      });
-    }
-    y += 92;
     this.button({
-      x: 640, y, label: '怎么玩（H）', key: 'KeyH', style: 'secondary',
+      x: 640, y: 428, label: '挑战模式（C）', key: 'KeyC', style: 'secondary',
+      onClick: () => this.ctx.go('challenge'),
+    });
+    this.button({
+      x: 640, y: 520, label: '装备库（I）', key: 'KeyI', style: 'secondary',
+      onClick: () => this.ctx.go('inventory'),
+    });
+    this.button({
+      x: 640, y: 612, label: '怎么玩（H）', key: 'KeyH', style: 'secondary',
       onClick: () => this.toggleHowTo(),
     });
 
     this.label(640, 694, '点一点街坊打个招呼', { size: 18, align: 'center', color: COLOR.ink }).setAlpha(0.7);
-  }
-
-  private start() {
-    this.ctx.go('mode');
   }
 
   private toggleHowTo() {

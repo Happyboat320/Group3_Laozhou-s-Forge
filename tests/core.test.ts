@@ -1,29 +1,18 @@
-﻿import { describe, expect, test } from 'vitest';
+// core 规则测试：掉落概率、节奏判定计分、进度与经济。
+import { describe, expect, test } from 'vitest';
 import { CONFIG } from '../src/config';
+import { qualityWeights, qualityRank, rollQuality, sellValue, QUALITIES, dropFactor } from '../src/core/drop';
+import { judgeHit, scoreSong, type Verdict } from '../src/core/rhythm';
 import {
-  GRADE_NAME,
-  coinsFor,
-  gradeOf,
-  judge,
-  meets,
-  qualityOf,
-  reputationDelta,
-  type ForgeResult,
-  type Verdict,
-} from '../src/core/forge';
-import {
-  currentOrder,
-  isFinished,
-  newGame,
-  nextScene,
-  settle,
-  summarize,
-  type Delivery,
-  type GameState,
-  type Outcome,
-} from '../src/core/game';
-import { buildChart } from '../src/core/chart';
-import { MODES, heatScore, modeInfo, rhythmScore } from '../src/core/modes';
+  addEquipment,
+  isUnlocked,
+  newProgress,
+  recordBest,
+  sellEquipment,
+  submitChallenge,
+  unlockSong,
+} from '../src/core/economy';
+import { advanceSession, challengeTotal, newGame, startChallenge, startSingle } from '../src/core/game';
 import { createSave } from '../src/engine/save';
 
 function fakeStorage() {
@@ -34,332 +23,182 @@ function fakeStorage() {
   };
 }
 
-/** 一次全中的打造结果（时机玩法）。 */
-function perfectResult(): ForgeResult {
-  return {
-    heat: 'perfect',
-    hits: Array.from({ length: CONFIG.forge.strikes }, () => 'perfect' as Verdict),
-    quench: 'perfect',
-    finished: true,
-  };
+/** 固定序列的 rng，方便断言落点。 */
+function fixedRng(...values: number[]) {
+  let i = 0;
+  return () => values[i++ % values.length];
 }
 
-/** 一次全歪的打造结果（时机玩法）。 */
-function sloppyResult(): ForgeResult {
-  return {
-    heat: 'miss',
-    hits: Array.from({ length: CONFIG.forge.strikes }, () => 'miss' as Verdict),
-    quench: 'miss',
-    finished: true,
-  };
-}
-
-/** 交付用的结果：三种玩法最终都折算成一个 0~1 的分数。 */
-const great = (): Outcome => ({ score: 1, finished: true });
-const poor = (): Outcome => ({ score: 0.05, finished: true });
-
-function playAll(state: GameState, make: () => Outcome): GameState {
-  while (!isFinished(state)) settle(state, CONFIG, make());
-  return state;
-}
-
-describe('订单表', () => {
-  test('三天六单，每天两单', () => {
-    const state = newGame(CONFIG);
-    expect(state.orders).toHaveLength(6);
-    const days = new Set(state.orders.map((o) => o.day));
-    expect([...days].sort()).toEqual([1, 2, 3]);
-    expect(state.orders.filter((o) => o.day === 2)).toHaveLength(2);
+describe('掉落概率', () => {
+  test('基准分布：普通难度、中等准确率', () => {
+    const weights = qualityWeights(CONFIG, 'normal', 0.7);
+    const total = weights.reduce((a, b) => a + b, 0);
+    const pct = weights.map((w) => Math.round((w / total) * 100));
+    expect(pct).toEqual([52, 28, 13, 5, 2]);
   });
 
-  test('器型至少有三种', () => {
-    const items = new Set(newGame(CONFIG).orders.map((o) => o.item));
-    expect(items.size).toBeGreaterThanOrEqual(3);
+  test('困难 + 高分明显提升高品质概率', () => {
+    const base = qualityWeights(CONFIG, 'normal', 0.7);
+    const hard = qualityWeights(CONFIG, 'hard', 0.95);
+    const legendBase = base[4] / base.reduce((a, b) => a + b, 0);
+    const legendHard = hard[4] / hard.reduce((a, b) => a + b, 0);
+    expect(legendHard).toBeGreaterThan(legendBase * 5);
+    expect(legendHard).toBeGreaterThan(0.12);
   });
 
-  test('第一单是柴刀，最后一单是老周要的匕首', () => {
-    const state = newGame(CONFIG);
-    expect(currentOrder(state)?.itemName).toBe('柴刀');
-    const last = state.orders.at(-1);
-    expect(last?.customerName).toBe('老周');
-    expect(GRADE_NAME[last!.want]).toBe('传世');
-  });
-});
-
-describe('判定（时机玩法）', () => {
-  const windows = { perfect: 0.2, good: 0.4 };
-
-  test('越靠近中间判定越好', () => {
-    expect(judge(0, windows)).toBe('perfect');
-    expect(judge(-0.19, windows)).toBe('perfect');
-    expect(judge(0.3, windows)).toBe('good');
-    expect(judge(0.9, windows)).toBe('miss');
+  test('简单 + 低分几乎只出凡品和良品', () => {
+    const weights = qualityWeights(CONFIG, 'easy', 0.3);
+    const total = weights.reduce((a, b) => a + b, 0);
+    const top2 = (weights[0] + weights[1]) / total;
+    expect(top2).toBeGreaterThan(0.85);
+    expect(dropFactor(CONFIG, 'easy', 0.3)).toBeLessThan(1);
   });
 
-  test('判定窗口的边界是闭区间', () => {
-    expect(judge(0.2, windows)).toBe('perfect');
-    expect(judge(0.4, windows)).toBe('good');
-    expect(judge(0.4001, windows)).toBe('miss');
+  test('权重随品质单调不增', () => {
+    const weights = qualityWeights(CONFIG, 'normal', 0.7);
+    for (let i = 1; i < weights.length; i += 1) expect(weights[i]).toBeLessThanOrEqual(weights[i - 1]);
+  });
+
+  test('掷品质：固定 rng 落在对应档位', () => {
+    expect(rollQuality(fixedRng(0.0), CONFIG, 'normal', 0.7)).toBe('common');
+    expect(rollQuality(fixedRng(0.99), CONFIG, 'normal', 0.7)).toBe('legend');
+  });
+
+  test('品质高低和卖价一致', () => {
+    const ranks = QUALITIES.map((q) => qualityRank(q));
+    expect(ranks).toEqual([1, 2, 3, 4, 5]);
+    const sells = QUALITIES.map((q) => sellValue(CONFIG, q));
+    for (let i = 1; i < sells.length; i += 1) expect(sells[i]).toBeGreaterThan(sells[i - 1]);
   });
 });
 
-describe('品质折算', () => {
-  test('全中就是传世，分数满', () => {
-    const { score, grade } = qualityOf(CONFIG, perfectResult());
-    expect(score).toBeCloseTo(1);
-    expect(grade).toBe('legend');
+describe('节奏判定和计分', () => {
+  const window = CONFIG.rhythm.window;
+
+  test('判定窗口边界', () => {
+    expect(judgeHit(0, window)).toBe('perfect');
+    expect(judgeHit(window.perfect, window)).toBe('perfect');
+    expect(judgeHit(window.perfect + 0.01, window)).toBe('good');
+    expect(judgeHit(-window.good, window)).toBe('good');
+    expect(judgeHit(window.good + 0.01, window)).toBe('miss');
   });
 
-  test('全歪是废品', () => {
-    const { grade } = qualityOf(CONFIG, sloppyResult());
-    expect(grade).toBe('scrap');
+  test('全完美 = 10000 分、准确率 1', () => {
+    const score = scoreSong(CONFIG, Array<Verdict>(10).fill('perfect'));
+    expect(score.accuracy).toBeCloseTo(1);
+    expect(score.points).toBe(10000);
+    expect(score.combo).toBe(10);
   });
 
-  test('顾客等太久，不管打得多好都是废品', () => {
-    const { grade } = qualityOf(CONFIG, { ...perfectResult(), finished: false });
-    expect(grade).toBe('scrap');
+  test('全落空 = 0 分', () => {
+    const score = scoreSong(CONFIG, Array<Verdict>(10).fill('miss'));
+    expect(score.points).toBe(0);
+    expect(score.combo).toBe(0);
+    expect(score.counts.miss).toBe(10);
   });
 
-  test('品质分越高成色越好', () => {
-    const { legend, fine, common } = CONFIG.forge.grade;
-    expect(gradeOf(CONFIG, legend)).toBe('legend');
-    expect(gradeOf(CONFIG, legend - 0.01)).toBe('fine');
-    expect(gradeOf(CONFIG, fine - 0.01)).toBe('common');
-    expect(gradeOf(CONFIG, common - 0.01)).toBe('scrap');
+  test('最高连击会被 miss 打断', () => {
+    const score = scoreSong(CONFIG, ['perfect', 'perfect', 'miss', 'perfect', 'perfect', 'perfect']);
+    expect(score.combo).toBe(3);
   });
 
-  test('三锤里有一锤偏了，还够得上传世', () => {
-    const result: ForgeResult = {
-      heat: 'perfect',
-      hits: ['perfect', 'perfect', 'good'],
-      quench: 'perfect',
-      finished: true,
-    };
-    expect(qualityOf(CONFIG, result).grade).toBe('legend');
-  });
-
-  test('成色高低能和顾客要求比较', () => {
-    expect(meets('legend', 'fine')).toBe(true);
-    expect(meets('fine', 'legend')).toBe(false);
-    expect(meets('common', 'common')).toBe(true);
+  test('空谱不除以零', () => {
+    const score = scoreSong(CONFIG, []);
+    expect(score.points).toBe(0);
   });
 });
 
-describe('三种玩法', () => {
-  test('开局记下选的玩法，默认是时机判定', () => {
-    expect(newGame(CONFIG).mode).toBe('timing');
-    expect(newGame(CONFIG, 'rhythm').mode).toBe('rhythm');
-    expect(newGame(CONFIG, 'heat').mode).toBe('heat');
+describe('进度与经济', () => {
+  test('新进度只解锁免费的歌', () => {
+    const progress = newProgress(CONFIG);
+    const free = CONFIG.songs.filter((s) => s.price <= 0).map((s) => s.id);
+    expect(progress.unlocked).toEqual(free);
+    expect(progress.coins).toBe(0);
   });
 
-  test('三种玩法各有自己的打造场景和说明', () => {
-    expect(new Set(MODES.map((m) => m.scene))).toEqual(new Set(['forge', 'rhythm', 'heat']));
-    expect(modeInfo('heat').name).toContain('火候');
-    expect(modeInfo('rhythm').how.length).toBeGreaterThan(2);
-    expect(modeInfo('nope' as never)).toBe(MODES[0]);
+  test('金币够才能解锁，解锁后扣钱', () => {
+    const progress = newProgress(CONFIG);
+    const paid = CONFIG.songs.find((s) => s.price > 0)!;
+    expect(unlockSong(progress, CONFIG, paid.id)).toBe(false);
+    progress.coins = paid.price + 10;
+    expect(unlockSong(progress, CONFIG, paid.id)).toBe(true);
+    expect(progress.coins).toBe(10);
+    expect(isUnlocked(progress, paid.id)).toBe(true);
+    // 已解锁再解锁不扣钱
+    expect(unlockSong(progress, CONFIG, paid.id)).toBe(false);
+    expect(progress.coins).toBe(10);
   });
 
-  test('节奏分是所有判定的平均分', () => {
-    expect(rhythmScore(CONFIG, ['perfect', 'perfect', 'perfect'])).toBeCloseTo(1);
-    expect(rhythmScore(CONFIG, ['perfect', 'good', 'miss'])).toBeCloseTo((1 + 0.6 + 0.15) / 3);
-    expect(rhythmScore(CONFIG, [])).toBe(0);
+  test('装备入库、卖出换金币', () => {
+    const progress = newProgress(CONFIG);
+    const item = addEquipment(progress, { type: 'item_sword', name: '长剑', quality: 'rare', songId: 'inspiration' });
+    expect(item.id).toBe(1);
+    expect(progress.inventory).toHaveLength(1);
+    const gained = sellEquipment(progress, CONFIG, item.id);
+    expect(gained).toBe(CONFIG.drop.sell.rare);
+    expect(progress.coins).toBe(gained);
+    expect(progress.inventory).toHaveLength(0);
+    // 卖不存在的不给钱
+    expect(sellEquipment(progress, CONFIG, 999)).toBe(0);
   });
 
-  test('火候分把净得分压到 0~1', () => {
-    const { full } = CONFIG.modes.heat.score;
-    expect(heatScore(CONFIG, 0)).toBe(0);
-    expect(heatScore(CONFIG, -40)).toBe(0);
-    expect(heatScore(CONFIG, full)).toBe(1);
-    expect(heatScore(CONFIG, full / 2)).toBeCloseTo(0.5);
-    expect(heatScore(CONFIG, full * 2)).toBe(1);
+  test('最好成绩只增不减', () => {
+    const progress = newProgress(CONFIG);
+    expect(recordBest(progress, 'inspiration', 'normal', 8000)).toBe(true);
+    expect(recordBest(progress, 'inspiration', 'normal', 7000)).toBe(false);
+    expect(progress.best.inspiration?.normal).toBe(8000);
   });
 
-  test('每种玩法有自己的分数线', () => {
-    // 0.75 分：节奏够精良、火候够传世、时机判定只到精良
-    expect(gradeOf(CONFIG, 0.75, 'rhythm')).toBe('fine');
-    expect(gradeOf(CONFIG, 0.75, 'heat')).toBe('legend');
-    expect(gradeOf(CONFIG, 0.75, 'timing')).toBe('fine');
-    expect(gradeOf(CONFIG, 0.75)).toBe('fine');
-  });
-
-  test('同样的分数在三种玩法里换来同样的成色', () => {
-    const state = newGame(CONFIG, 'heat');
-    const delivery = settle(state, CONFIG, { score: 0.9, finished: true });
-    expect(delivery.grade).toBe('legend');
-  });
-});
-
-describe('节奏谱面', () => {
-  const seed = 12345;
-  const day1 = buildChart(CONFIG, seed, 1);
-  const day3 = buildChart(CONFIG, seed, 3);
-  const chordAt = (notes: typeof day1, time: number) => notes.filter((n) => Math.abs(n.time - time) < 1e-6).length;
-
-  test('越往后音符越多', () => {
-    expect(day3.length).toBeGreaterThan(day1.length);
-  });
-
-  test('一单大约三十秒', () => {
-    const span = day3.at(-1)!.time - day3[0].time;
-    expect(span).toBeGreaterThan(24);
-    expect(span).toBeLessThan(36);
-  });
-
-  test('最后一天有同时按三个键的和弦，第一天最多两个', () => {
-    const maxDay3 = Math.max(...day3.map((n) => chordAt(day3, n.time)));
-    const maxDay1 = Math.max(...day1.map((n) => chordAt(day1, n.time)));
-    expect(maxDay3).toBe(3);
-    expect(maxDay1).toBeLessThanOrEqual(2);
-  });
-
-  test('同一颗种子出同一张谱', () => {
-    expect(buildChart(CONFIG, seed, 2)).toEqual(buildChart(CONFIG, seed, 2));
-  });
-
-  test('音符按时间升序排好', () => {
-    const times = day3.map((n) => n.time);
-    expect([...times].sort((a, b) => a - b)).toEqual(times);
+  test('排行榜按分数排序并截断', () => {
+    const progress = newProgress(CONFIG);
+    submitChallenge(progress, CONFIG, { score: 100, songs: [], date: 'x' });
+    const rank = submitChallenge(progress, CONFIG, { score: 300, songs: [], date: 'x' });
+    expect(rank).toBe(1);
+    submitChallenge(progress, CONFIG, { score: 200, songs: [], date: 'x' });
+    expect(progress.leaderboard.map((e) => e.score)).toEqual([300, 200, 100]);
+    for (let i = 0; i < 20; i += 1) submitChallenge(progress, CONFIG, { score: 1000 + i, songs: [], date: 'x' });
+    expect(progress.leaderboard).toHaveLength(CONFIG.challenge.top);
   });
 });
 
-describe('报酬和口碑', () => {
-  test('达到要求拿原价，超出要求有加成', () => {
-    expect(coinsFor(CONFIG, 20, 'fine', 'fine')).toBe(28);
-    expect(coinsFor(CONFIG, 20, 'legend', 'fine')).toBe(48);
+describe('对局流程', () => {
+  test('新游戏没有进行中的对局', () => {
+    const game = newGame(CONFIG);
+    expect(game.session).toBeNull();
+    expect(game.progress.coins).toBe(0);
   });
 
-  test('废品几乎不值钱', () => {
-    expect(coinsFor(CONFIG, 20, 'scrap', 'common')).toBe(4);
+  test('单曲：一首打完即结束', () => {
+    const session = startSingle('inspiration', 'normal');
+    expect(advanceSession(session, 8000)).toBe('done');
+    expect(session.scores).toEqual([8000]);
   });
 
-  test('口碑：达标加，未达标减，废品扣更多，跑单扣最多', () => {
-    const { gain, loss, scrap, timeout } = CONFIG.pay.rep;
-    expect(reputationDelta(CONFIG, 'fine', 'fine', false)).toBe(gain);
-    expect(reputationDelta(CONFIG, 'common', 'fine', false)).toBe(-loss);
-    expect(reputationDelta(CONFIG, 'scrap', 'common', false)).toBe(-scrap);
-    expect(reputationDelta(CONFIG, 'scrap', 'common', true)).toBe(-timeout);
-  });
-});
+  test('挑战：随机抽三首不重复，打完一首进下一首', () => {
+    const session = startChallenge(CONFIG, fixedRng(0.1, 0.5, 0.9));
+    expect(session.songs).toHaveLength(CONFIG.challenge.songs);
+    expect(new Set(session.songs).size).toBe(session.songs.length);
+    expect(session.difficulty).toBe(CONFIG.challenge.difficulty);
 
-describe('交付与推进', () => {
-  test('交一单就前进一单，金币和口碑都记上', () => {
-    const state = newGame(CONFIG);
-    const before = state.reputation;
-    const delivery = settle(state, CONFIG, great());
-    expect(delivery.grade).toBe('legend');
-    expect(delivery.coins).toBeGreaterThan(0);
-    expect(state.orderIndex).toBe(1);
-    expect(state.coins).toBe(delivery.coins);
-    expect(state.reputation).toBe(before + CONFIG.pay.rep.gain);
-    expect(currentOrder(state)?.itemName).toBe('锄头');
+    expect(advanceSession(session, 5000)).toBe('next');
+    expect(session.songId).toBe(session.songs[1]);
+    expect(advanceSession(session, 6000)).toBe('next');
+    expect(advanceSession(session, 7000)).toBe('done');
+    expect(challengeTotal(session)).toBe(18000);
   });
 
-  test('顾客等太久：不给钱，扣口碑，但照样往下走', () => {
-    const state = newGame(CONFIG);
-    const delivery = settle(state, CONFIG, { score: 1, finished: false });
-    expect(delivery.timedOut).toBe(true);
-    expect(delivery.coins).toBe(0);
-    expect(state.coins).toBe(0);
-    expect(state.reputation).toBe(CONFIG.game.startReputation - CONFIG.pay.rep.timeout);
-    expect(state.orderIndex).toBe(1);
+  test('状态能 JSON 往返（存档要用）', () => {
+    const game = newGame(CONFIG);
+    game.session = startChallenge(CONFIG, Math.random);
+    game.progress.coins = 33;
+    expect(JSON.parse(JSON.stringify(game))).toEqual(game);
   });
 
-  test('六单交完就结束，打得准会赢', () => {
-    const state = playAll(newGame(CONFIG), great);
-    expect(state.orderIndex).toBe(6);
-    expect(state.history).toHaveLength(6);
-    expect(state.endReason).toBe('win');
-    expect(summarize(state, CONFIG).win).toBe(true);
-  });
-
-  test('全打废品，口碑掉光提前收摊', () => {
-    const state = playAll(newGame(CONFIG), poor);
-    expect(state.endReason).toBe('lose');
-    expect(state.reputation).toBe(0);
-    expect(state.history.length).toBeLessThan(6);
-    expect(isFinished(state)).toBe(true);
-  });
-
-  test('口碑只在 0 到上限之间', () => {
-    const state = newGame(CONFIG);
-    state.reputation = CONFIG.game.maxReputation;
-    settle(state, CONFIG, great());
-    expect(state.reputation).toBe(CONFIG.game.maxReputation);
-  });
-});
-
-describe('三关的走法', () => {
-  test('每单记下是第几天交的', () => {
-    const state = newGame(CONFIG);
-    const delivery = settle(state, CONFIG, great());
-    expect(delivery.day).toBe(1);
-  });
-
-  test('当天两单交完，进关卡结算', () => {
-    const state = newGame(CONFIG);
-    const first = settle(state, CONFIG, great());
-    expect(nextScene(state, first)).toBe('shop');
-    const second = settle(state, CONFIG, great());
-    expect(nextScene(state, second)).toBe('dayend');
-  });
-
-  test('最后一单交完直接去总结算', () => {
-    const state = newGame(CONFIG);
-    let last: Delivery | undefined;
-    while (!isFinished(state)) last = settle(state, CONFIG, great());
-    expect(nextScene(state, last!)).toBe('result');
-  });
-
-  test('提前收摊也直接去结算', () => {
-    const state = playAll(newGame(CONFIG), poor);
-    const last = state.history.at(-1)!;
-    expect(nextScene(state, last)).toBe('result');
-  });
-});
-
-describe('机器人对打', () => {
-  test('打得准的明显比乱按的赚得多，也走得更远', () => {
-    const good = playAll(newGame(CONFIG), great);
-    const bad = playAll(newGame(CONFIG), poor);
-    expect(good.coins).toBeGreaterThan(bad.coins);
-    expect(good.history.length).toBeGreaterThanOrEqual(bad.history.length);
-    expect(good.endReason).toBe('win');
-    expect(bad.endReason).toBe('lose');
-  });
-
-  test('中规中矩也能玩到结算，但成色上不去', () => {
-    const state = playAll(newGame(CONFIG, 'rhythm'), () => ({ score: 0.6, finished: true }));
-    expect(isFinished(state)).toBe(true);
-    expect(state.history.every((d) => d.grade === 'fine' || d.grade === 'common')).toBe(true);
-    expect(summarize(state, CONFIG).legend).toBe(0);
-  });
-});
-
-describe('存档', () => {
-  test('打到一半存下来，读回来能接着打', () => {
+  test('存档：写进去能读回来', () => {
     const save = createSave('test', fakeStorage());
-    const state = newGame(CONFIG, 'rhythm');
-    settle(state, CONFIG, great());
-    settle(state, CONFIG, great());
-    save.writeRun(state);
-
-    const restored = save.run!;
-    expect(restored.orderIndex).toBe(2);
-    expect(restored.mode).toBe('rhythm');
-    expect(restored.coins).toBe(state.coins);
-    expect(currentOrder(restored)?.id).toBe(currentOrder(state)?.id);
-
-    settle(restored, CONFIG, great());
-    expect(restored.orderIndex).toBe(3);
-  });
-
-  test('存档损坏时不崩溃，最高分只升不降', () => {
-    const storage = fakeStorage();
-    storage.setItem('test', '{坏数据');
-    const save = createSave('test', storage);
-    expect(save.run).toBeNull();
-    save.recordScore(50);
-    save.recordScore(20);
-    expect(save.best).toBe(50);
+    const game = newGame(CONFIG);
+    game.progress.coins = 88;
+    save.writeRun(game);
+    expect(save.run?.progress.coins).toBe(88);
   });
 });

@@ -46,6 +46,44 @@ Background: plain solid color for easy background removal.
 Avoid: text, letters, watermark, realism, 3D render, pixel art, noisy textures, dark gloomy colors.
 ```
 
+### 装备图：铁质生活用具 × 五档品质（10 × 5 = 50 张）
+
+在模板基础上把“画什么 / 构图 / 背景”三行换成下面这段。**一段提示词只画一个物体**，不要一图多物。
+
+```text
+画什么：<器物英文名，见下表>，<品质英文名，见下表>
+
+画风：可爱 Q 版中国古风休闲游戏素材，像手机游戏的图标贴纸。连续的粗深棕色描边（接近 #5a3220，不是黑色），圆头线条；平涂上色，加一层柔和阴影和左上方的一小块白色高光；暖色调，饱和度中等偏高；造型圆润厚实、边角圆滑。
+构图：单个物体居中，占画面约 80%，四周留少量空白。物体主体轴线从左上斜向右下约 30°（top end at the upper left, tip/handle end at the lower right），约 3/4 俯视角，看得出厚度。
+背景：纯白背景 #FFFFFF，没有任何阴影、渐变、光晕、地面和投影，物体与背景之间轮廓干净，方便抠成透明底。
+不要：文字、字母、数字、标签、水印、写实、3D 渲染、像素风、复杂纹理、阴暗色调、多个物体、背景光斑。
+```
+
+10 种器物（文件名 `item_iron_<name>_<quality>`）：
+
+| # | name | 器物 | 说明 |
+|---|---|---|---|
+| 1 | `pot` | 铁锅 | 带双耳和短柄，锅口朝右上方 |
+| 2 | `ladle` | 铁勺 | 长柄勺，勺碗在右下 |
+| 3 | `cleaver` | 铁菜刀 | 方头厚背，刀刃朝右下 |
+| 4 | `kettle` | 铁水壶 | 壶嘴和提梁，壶嘴朝右下 |
+| 5 | `wok` | 铁炒锅 | 圆底带长柄，柄朝右下 |
+| 6 | `nail` | 铁钉 | 一颗粗钉，钉尖朝右下 |
+| 7 | `tongs` | 火钳 | 两股钳口在右下 |
+| 8 | `hoe` | 铁锄 | 木柄斜放，锄头在右下 |
+| 9 | `bucket` | 铁桶 | 带提手，桶身在右下 |
+| 10 | `scissors` | 铁剪刀 | 两股刀刃相交，刀尖朝右下 |
+
+五档品质（`common / fine / rare / epic / legend`）的视觉差异，**形状和题材不变，只升级材质与装饰**：
+
+| quality | 名字 | 提示词里的关键词 |
+|---|---|---|
+| `common` | 凡品 | plain worn grey iron, matte surface, a little rust, slightly dented, no decoration |
+| `fine` | 良品 | cleaner grey iron with soft blue sheen, polished edges, neat reddish-wood handle, one simple brass band |
+| `rare` | 珍品 | blue-silver steel-like iron, crisp bevel highlights, engraved simple cloud pattern, thin copper trim, 1–2 tiny soft white sparkles |
+| `epic` | 极品 | deep blue-purple tinted metal with subtle glow along the edges, intricate engraved pattern, gold inlay, small purple gem rivet, 3–4 purple-white sparkles |
+| `legend` | 传说 | radiant gold-and-red-hot iron with a warm glowing rim, dragon-and-cloud carved pattern, gold filigree, a small glinting gem, golden sparkles, and a faint golden halo tight behind the object (the halo must stay within the object's outline; the background stays pure white) |
+
 ### 换成其它类型时，改“构图”和“背景”两行
 
 | 类型 | 构图 | 背景 |

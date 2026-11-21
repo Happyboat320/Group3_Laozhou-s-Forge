@@ -311,7 +311,9 @@
 | `sfx_coin` | 收钱 |
 | `sfx_deliver` | 交付成功 |
 | `sfx_scrap` | 出废品、交付失败 |
-| `bgm_main` | 背景音乐（没有文件时静音） |
+| `bgm_main` | 菜单背景音乐（没有文件时走 `src/audio/bgm.ts` 的合成循环） |
+
+> 打歌用的四首 CC0 音乐在 `assets/music/`，谱面在 `assets/charts/`，不经过 manifest，由 `src/data/songs.ts` 和 `src/audio/track.ts` 按需加载。
 
 ## 要加新素材
 
