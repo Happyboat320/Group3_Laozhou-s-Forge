@@ -3,7 +3,7 @@ import { BaseScene } from '../engine/scenes';
 import { COLOR } from '../engine/ui';
 import { startSingle } from '../core/game';
 import { DIFFICULTIES, DIFFICULTY_NAME, type Difficulty } from '../core/rhythm';
-import { chartExists, chartFor, songById } from '../data/songs';
+import { chartExists, chartFor, equipmentName, songById } from '../data/songs';
 import { backButton, panel } from './common';
 
 export class DifficultyScene extends BaseScene {
@@ -23,7 +23,7 @@ export class DifficultyScene extends BaseScene {
 
     const song = songById(this.songId);
     this.label(640, 96, song.title, { size: 44, weight: 700, align: 'center', color: COLOR.cream, stroke: '#2a1d14' });
-    this.label(640, 152, `这首歌锻「${song.equipName}」　选一个难度`, {
+    this.label(640, 152, `这首歌锻「${equipmentName(song.equipment)}」　选一个难度`, {
       size: 22, align: 'center', color: COLOR.cream, stroke: '#2a1d14',
     });
 

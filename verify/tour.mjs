@@ -4,16 +4,17 @@
 // 只用于开发自检，不参与打包。
 import { mkdir, rm } from 'node:fs/promises';
 import { chromium } from 'playwright-core';
-import { createServer } from 'vite';
+import { build, preview } from 'vite';
 
 const MODE = process.argv[2] === 'challenge' ? 'challenge' : 'single';
 const OUT = `shots/${MODE}`;
 await rm(OUT, { recursive: true, force: true });
 await mkdir(OUT, { recursive: true });
 
+// 用构建后的静态产物跑，避免 dev server 的热更新在打歌途中刷新页面把流程打断
 const PORT = MODE === 'challenge' ? 5291 : 5290;
-const server = await createServer({ logLevel: 'error', server: { port: PORT, host: '127.0.0.1', open: false } });
-await server.listen();
+await build({ logLevel: 'error' });
+const server = await preview({ logLevel: 'error', preview: { port: PORT, host: '127.0.0.1', open: false } });
 const url = `${server.resolvedUrls.local[0]}?shot`;
 
 async function launch() {
@@ -177,7 +178,7 @@ try {
   await stopAuto().catch(() => {});
   await page.close();
   await browser.close();
-  await server.close();
+  await server.httpServer.close();
 }
 
 if (errors.length) {

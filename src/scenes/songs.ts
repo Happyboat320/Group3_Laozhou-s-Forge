@@ -5,7 +5,7 @@ import { COLOR } from '../engine/ui';
 import { isUnlocked, unlockSong } from '../core/economy';
 import { DIFFICULTIES, DIFFICULTY_NAME, type Difficulty } from '../core/rhythm';
 import { preloadTrack } from '../audio/track';
-import { SONGS, chartExists, type SongInfo } from '../data/songs';
+import { SONGS, chartExists, equipmentArt, equipmentName, type SongInfo } from '../data/songs';
 import { addCoins, backButton, panel, popText } from './common';
 
 export class SongsScene extends BaseScene {
@@ -39,9 +39,9 @@ export class SongsScene extends BaseScene {
     const unlocked = isUnlocked(progress, song.id);
 
     panel(this, x, y, 276, 420, 0.96);
-    this.art(song.equipment, x, y - 120, 150);
+    this.art(equipmentArt(song.equipment, 'legend'), x, y - 120, 150);
     this.label(x, y - 14, song.title, { size: 26, weight: 700, align: 'center' });
-    this.label(x, y + 20, `锻出：${song.equipName}`, { size: 19, align: 'center', color: COLOR.gray });
+    this.label(x, y + 20, `锻出：${equipmentName(song.equipment)}`, { size: 19, align: 'center', color: COLOR.gray });
 
     // 最好成绩：三个难度各一行
     const best = progress.best[song.id] ?? {};

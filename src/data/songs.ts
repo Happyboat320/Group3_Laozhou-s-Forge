@@ -2,6 +2,7 @@
 // .sm 文本用 Vite 的 ?raw 引入，解析在 core/sm.ts（纯逻辑、有测试）。
 import { CONFIG } from '../config';
 import { chartDuration, chartNotes, parseSm, type ChartNote } from '../core/sm';
+import type { Quality } from '../core/drop';
 import type { Difficulty } from '../core/rhythm';
 
 const CHART_FILES = import.meta.glob('/assets/charts/*.sm', {
@@ -49,4 +50,19 @@ export function chartExists(songId: string): boolean {
 export function chartLength(songId: string, difficulty: Difficulty): number {
   const raw = CHART_FILES[`/assets/charts/${songId}.sm`];
   return raw ? chartDuration(parseSm(raw), SM_DIFFICULTY[difficulty]) : 0;
+}
+
+/** 某件器物在某个品质下的素材 ID：item_iron_<器物>_<品质>。 */
+export function equipmentArt(art: string, quality: Quality): string {
+  return `item_iron_${art}_${quality}`;
+}
+
+/** 器物 id → 中文名。 */
+export function equipmentName(equipmentId: string): string {
+  return CONFIG.equipments.find((e) => e.id === equipmentId)?.name ?? equipmentId;
+}
+
+/** 随机挑一件器物（挑战模式的保底传说用它）。 */
+export function randomEquipment(rng: () => number = Math.random) {
+  return CONFIG.equipments[Math.floor(rng() * CONFIG.equipments.length)];
 }

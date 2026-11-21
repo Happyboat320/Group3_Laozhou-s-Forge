@@ -3,7 +3,7 @@
 import Phaser from 'phaser';
 import { startBgm, stopBgm } from '../audio/bgm';
 import { loadTrack, type TrackHandle } from '../audio/track';
-import { DIFFICULTY_NAME, scoreSong, type Verdict } from '../core/rhythm';
+import { DIFFICULTY_NAME, KeySequence, scoreSong, shortcutScore, type Verdict } from '../core/rhythm';
 import { BaseScene } from '../engine/scenes';
 import { COLOR, addText, hex } from '../engine/ui';
 import { chartFor, chartLength, songById } from '../data/songs';
@@ -14,6 +14,8 @@ interface Note {
   time: number;
   verdict: Verdict | null;
   sprite: Phaser.GameObjects.Image;
+  /** 和弦（同一时刻多个音符）时加的黄色边框，跟着音符一起下落 */
+  ring: Phaser.GameObjects.Graphics | null;
 }
 
 const LANE_KEYS = ['KeyA', 'KeyS', 'KeyD', 'KeyF'];
@@ -30,6 +32,8 @@ export class PlayScene extends BaseScene {
   private finished = false;
   private track: TrackHandle | null = null;
   private duration = 0;
+  /** 彩蛋：键盘输入 1212（在 create 里初始化，字段初始化时还取不到 ctx） */
+  private egg = new KeySequence([]);
 
   private comboText!: Phaser.GameObjects.Text;
   private countText!: Phaser.GameObjects.Text;
@@ -63,6 +67,7 @@ export class PlayScene extends BaseScene {
     this.track = null;
     this.duration = chartLength(session.songId, session.difficulty);
     this.keyCaps = [];
+    this.egg = new KeySequence(this.ctx.config.egg.code);
 
     stopBgm();
     this.background('bg_forge');
@@ -71,13 +76,33 @@ export class PlayScene extends BaseScene {
     this.drawLanes();
     this.drawHud(song.title, DIFFICULTY_NAME[session.difficulty]);
 
-    for (const note of notes) {
+    // 同一时刻落下来的音符算一组，组内多于一个就给它加黄色边框，提示「要一起敲」
+    const CHORD_EPS = 0.03;
+    for (let i = 0; i < notes.length; i += 1) {
+      const note = notes[i];
+      const chord = notes.filter((n, j) => j !== i && Math.abs(n.time - note.time) <= CHORD_EPS).length > 0;
       const x = this.laneX(note.lane);
-      const sprite = this.art('mat_iron_ingot', x, rhythm.spawnY, 62).setDepth(6).setVisible(false);
-      this.notes.push({ lane: note.lane, time: note.time, verdict: null, sprite });
+      const sprite = this.art('mat_iron_ingot', x, rhythm.spawnY, 58).setDepth(6).setVisible(false);
+      let ring: Phaser.GameObjects.Graphics | null = null;
+      if (chord) {
+        // 黄色描边方框：外发光一层 + 内实线一层，在深色轨道上很显眼
+        ring = this.add.graphics().setDepth(5).setVisible(false);
+        ring.lineStyle(6, 0xffe066, 0.35);
+        ring.strokeRoundedRect(-43, -43, 86, 86, 14);
+        ring.lineStyle(3, 0xffc400, 0.95);
+        ring.strokeRoundedRect(-38, -38, 76, 76, 12);
+        ring.x = x;
+        ring.y = rhythm.spawnY;
+      }
+      this.notes.push({ lane: note.lane, time: note.time, verdict: null, sprite, ring });
     }
 
     this.onKey((event) => {
+      // 彩蛋：敲出 1 2 1 2 直接过关，按 80% 计分
+      if (this.egg.push(event.code)) {
+        this.skipByEgg();
+        return;
+      }
       const lane = LANE_KEYS.indexOf(event.code);
       if (lane >= 0) this.pressLane(lane);
       if (event.code === 'Escape') this.quit();
@@ -127,23 +152,23 @@ export class PlayScene extends BaseScene {
   // ---- 画面 --------------------------------------------------------------
 
   private drawLanes() {
-    const { lanes, laneGap, hitLineY, spawnY } = this.ctx.config.rhythm;
-    const top = Math.max(spawnY, 96);
+    const { lanes, laneGap, hitLineY } = this.ctx.config.rhythm;
+    const top = 96;
 
     for (let i = 0; i < lanes; i += 1) {
       const x = this.laneX(i);
-      this.add.rectangle(x, (top + hitLineY) / 2, laneGap - 12, hitLineY - top, 0x2a1d14, 0.32).setStrokeStyle(2, 0xffffff, 0.08);
+      this.add.rectangle(x, (top + hitLineY) / 2, laneGap - 10, hitLineY - top, 0x2a1d14, 0.38).setStrokeStyle(2, 0xffffff, 0.12);
     }
 
-    // 底部中央的铁块：落锤目标
-    this.anvil = this.art('anvil', 640, 662, 330).setDepth(2);
+    // 中央的铁块：判定线就落在砧面上，铁块作为落锤目标摆在下方
+    this.anvil = this.art('anvil', 640, hitLineY + 168, 360).setDepth(2);
     this.add.rectangle(640, hitLineY, laneGap * lanes - 4, 5, hex('#fff3d0'), 0.9).setDepth(4);
     this.add.rectangle(640, hitLineY + 10, laneGap * lanes - 4, 12, hex('#e8893a'), 0.28).setDepth(4);
 
-    // 键帽 A S D F
+    // 键帽 A S D F（压在砧面两侧，不挡判定线）
     for (let i = 0; i < lanes; i += 1) {
       const x = this.laneX(i);
-      const cap = this.add.container(x, hitLineY + 78);
+      const cap = this.add.container(x, hitLineY + 82);
       const bg = this.add.rectangle(0, 0, 72, 72, hex('#fff6dc'), 0.92).setStrokeStyle(3, hex('#a4521f'));
       const text = addText(this, 0, 0, LANE_LABELS[i] ?? '', { size: 36, weight: 700, align: 'center' });
       cap.add([bg, text]);
@@ -162,8 +187,8 @@ export class PlayScene extends BaseScene {
 
     this.countText = addText(this, 36, 110, '完美 0　不错 0　落空 0', { size: 20, color: COLOR.cream, stroke: '#2a1d14' });
 
-    addText(this, 1244, 600, '连击', { size: 18, align: 'right', color: COLOR.cream, stroke: '#2a1d14' });
-    this.comboText = addText(this, 1244, 648, '0', { size: 44, weight: 700, color: '#ffd9a0', stroke: '#2a1d14' });
+    addText(this, 1150, 620, '连击', { size: 18, align: 'right', color: COLOR.cream, stroke: '#2a1d14' });
+    this.comboText = addText(this, 1150, 660, '0', { size: 44, weight: 700, align: 'right', color: '#ffd9a0', stroke: '#2a1d14' });
   }
 
   // ---- 打 ---------------------------------------------------------------
@@ -210,7 +235,7 @@ export class PlayScene extends BaseScene {
       this.counts[verdict] += 1;
       popText(this, note.sprite.x, hitLineY - 60, verdict === 'perfect' ? '完美！' : '不错', color, 28);
       this.sfx(verdict === 'perfect' ? 'sfx_hammer_heavy' : 'sfx_hammer_light', { volume: 0.8 });
-      this.cameras.main.shake(verdict === 'perfect' ? 90 : 60, verdict === 'perfect' ? 0.004 : 0.002);
+      this.cameras.main.shake(verdict === 'perfect' ? 70 : 45, verdict === 'perfect' ? 0.0012 : 0.0007);
 
       // 落锤的火星 + 铁块颤一下
       const spark = this.art('fx_spark', note.sprite.x, hitLineY, 96).setDepth(20);
@@ -229,6 +254,11 @@ export class PlayScene extends BaseScene {
       duration: 160,
       onComplete: () => sprite.destroy(),
     });
+    if (note.ring) {
+      const ring = note.ring;
+      note.ring = null;
+      this.tweens.add({ targets: ring, alpha: 0, duration: 200, onComplete: () => ring.destroy() });
+    }
   }
 
   /** 键帽按下的亮光。 */
@@ -260,6 +290,20 @@ export class PlayScene extends BaseScene {
     this.ctx.go('settle');
   }
 
+  /** 彩蛋：直接算过关，成绩按满分的 80%。 */
+  private skipByEgg() {
+    if (this.finished) return;
+    const session = this.ctx.game.session;
+    if (!session) return;
+    this.finished = true;
+    this.track?.stop();
+    this.sfx('sfx_deliver', { volume: 0.9 });
+    popText(this, 640, 300, '彩蛋！这一单算八成', '#c8862f', 40);
+    session.last = shortcutScore(this.notes.length, this.ctx.config.egg.score);
+    this.ctx.save.writeRun(this.ctx.game);
+    this.time.delayedCall(900, () => this.ctx.go('settle'));
+  }
+
   private quit() {
     if (this.finished) return;
     this.finished = true;
@@ -280,7 +324,12 @@ export class PlayScene extends BaseScene {
       if (note.verdict) continue;
       const y = hitLineY - (note.time - now) * speed;
       note.sprite.y = y;
-      note.sprite.setVisible(y > 96 && y < hitLineY + 140);
+      const visible = y >= 100 && y < hitLineY + 70;
+      note.sprite.setVisible(visible);
+      if (note.ring) {
+        note.ring.y = y;
+        note.ring.setVisible(visible);
+      }
       if (now - note.time > window.good) {
         this.judge(note, 'miss');
         continue;

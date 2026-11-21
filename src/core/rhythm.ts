@@ -64,3 +64,52 @@ export function scoreSong(config: Config, verdicts: Verdict[]): SongScore {
   const accuracy = verdicts.reduce((sum, v) => sum + value[v], 0) / total;
   return { counts, combo: best, accuracy, points: Math.round(accuracy * 10000) };
 }
+
+/**
+ * 彩蛋：维护「最近敲了几个键」，敲出配好的数字串就算触发。
+ * 只看按下的方向键序列，其他键忽略；出错就从头再来。
+ */
+export class KeySequence {
+  private buffer: string[] = [];
+
+  constructor(private readonly code: readonly string[]) {}
+
+  /**
+   * 喂一个 KeyboardEvent.code，返回是否刚好凑齐。
+   * 缓冲区里可能攒着多个字符：每次都从「当前已匹配长度」往后比，
+   * 对不上就退回去重新找开头（这样 1 2 1 2 1 2 里能识别到第二个 1 2 1 2）。
+   */
+  push(keyCode: string): boolean {
+    this.buffer.push(keyCode);
+    // 只要缓冲区的末尾是不是目标串的前缀；是就继续，不是就丢到最长公共后缀
+    let matched = 0;
+    for (let len = Math.min(this.buffer.length, this.code.length); len > 0; len -= 1) {
+      const tail = this.buffer.slice(this.buffer.length - len);
+      if (tail.every((k, i) => k === this.code[i])) {
+        matched = len;
+        break;
+      }
+    }
+    if (matched === this.code.length) {
+      this.buffer = [];
+      return true;
+    }
+    // 只留下最长匹配的那一段，其余丢掉
+    this.buffer = this.buffer.slice(this.buffer.length - matched);
+    return false;
+  }
+
+  reset() {
+    this.buffer = [];
+  }
+}
+
+/** 彩蛋跳过后的成绩：按满分的 ratio 折算，判定全当作「不错」、连击不断。 */
+export function shortcutScore(total: number, ratio: number): SongScore {
+  return {
+    counts: { perfect: 0, good: total, miss: 0 },
+    combo: total,
+    accuracy: ratio,
+    points: Math.round(ratio * 10000),
+  };
+}

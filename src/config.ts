@@ -12,10 +12,10 @@ export const CONFIG = {
   rhythm: {
     lanes: 4,
     /** 判定线的 y（铁块上方这条线） */
-    hitLineY: 552,
-    /** 音符从多高开始落下 */
-    spawnY: -60,
-    laneGap: 118,
+    hitLineY: 500,
+    /** 音符从多高开始落下（比轨道顶再高一点，进入通道才显示） */
+    spawnY: 40,
+    laneGap: 132,
     /** 判定窗口，单位秒 */
     window: { perfect: 0.085, good: 0.17 },
     /** 一次判定值多少分：完美 / 不错 / 落空。准确率和掉落概率都按它算 */
@@ -46,6 +46,14 @@ export const CONFIG = {
     sell: { common: 8, fine: 18, rare: 40, epic: 90, legend: 200 },
   },
 
+  /** 彩蛋：打歌时在键盘上敲出这个数字串，直接跳过并算 80% 分数。 */
+  egg: {
+    /** 触发键（按顺序敲的 Digit 键） */
+    code: ['Digit1', 'Digit2', 'Digit1', 'Digit2'],
+    /** 跳过后按满分的百分之多少计 */
+    score: 0.8,
+  },
+
   /** 挑战模式：系统随机抽三首连打，统一普通难度，总分上榜，保底一件随机传说装备。 */
   challenge: {
     songs: 3,
@@ -54,45 +62,35 @@ export const CONFIG = {
     top: 10,
   },
 
-  /** 曲库：一首歌对应一件装备。file 放在 assets/music/ 下，谱面在 assets/charts/ 下同名 .sm。 */
+  /**
+   * 十件器物：每件有五档品质的图（item_iron_<器物>_<品质>）。
+   * 玩家打歌掉落的装备 = 器物 × 品质，用哪张图由品质决定。
+   */
+  equipments: [
+    { id: 'cleaver', name: '铁菜刀', art: 'cleaver' },
+    { id: 'hoe', name: '铁锄头', art: 'hoe' },
+    { id: 'nail', name: '铁钉', art: 'nail' },
+    { id: 'scissors', name: '铁剪刀', art: 'scissors' },
+    { id: 'tongs', name: '铁火钳', art: 'tongs' },
+    { id: 'ladle', name: '铁汤勺', art: 'ladle' },
+    { id: 'wok', name: '铁锅铲', art: 'wok' },
+    { id: 'pot', name: '铁锅', art: 'pot' },
+    { id: 'bucket', name: '铁桶', art: 'bucket' },
+    { id: 'kettle', name: '铁壶', art: 'kettle' },
+  ],
+
+  /** 曲库：一首歌对应一件器物（掉落的品质决定用哪张图）；文件在 assets/music/，谱面在 assets/charts/<id>.sm。 */
   songs: [
-    {
-      id: 'inspiration',
-      title: 'Inspiration',
-      artist: 'FreePD',
-      file: 'assets/music/Inspiration.mp3',
-      equipment: 'item_sword',
-      equipName: '长剑',
-      /** 解锁价格（文），0 是默认解锁 */
-      price: 0,
-    },
-    {
-      id: 'funshine',
-      title: 'Funshine',
-      artist: 'FreePD',
-      file: 'assets/music/Funshine.mp3',
-      equipment: 'item_horseshoe',
-      equipName: '马蹄铁',
-      price: 120,
-    },
-    {
-      id: 'beat-one',
-      title: 'Beat One',
-      artist: 'FreePD',
-      file: 'assets/music/BeatOne.mp3',
-      equipment: 'item_dagger',
-      equipName: '匕首',
-      price: 160,
-    },
-    {
-      id: 'hit-n-smash',
-      title: 'Hit n Smash',
-      artist: 'FreePD',
-      file: 'assets/music/HitnSmash.mp3',
-      equipment: 'item_axe',
-      equipName: '战斧',
-      price: 220,
-    },
+    { id: 'inspiration', title: 'Inspiration', artist: 'FreePD', file: 'assets/music/Inspiration.mp3', equipment: 'cleaver', price: 0 },
+    { id: 'funshine', title: 'Funshine', artist: 'FreePD', file: 'assets/music/Funshine.mp3', equipment: 'hoe', price: 120 },
+    { id: 'beat-one', title: 'Beat One', artist: 'FreePD', file: 'assets/music/BeatOne.mp3', equipment: 'nail', price: 160 },
+    { id: 'hit-n-smash', title: 'Hit n Smash', artist: 'FreePD', file: 'assets/music/HitnSmash.mp3', equipment: 'scissors', price: 220 },
+    { id: 'backbeat', title: 'Backbeat', artist: 'FreePD', file: 'assets/music/Backbeat.mp3', equipment: 'tongs', price: 260 },
+    { id: 'motions', title: 'Motions', artist: 'FreePD', file: 'assets/music/Motions.mp3', equipment: 'ladle', price: 300 },
+    { id: 'adventure', title: 'Adventure', artist: 'FreePD', file: 'assets/music/Adventure.mp3', equipment: 'wok', price: 340 },
+    { id: 'fireworks', title: 'Fireworks', artist: 'FreePD', file: 'assets/music/Fireworks.mp3', equipment: 'pot', price: 380 },
+    { id: 'city-sunshine', title: 'City Sunshine', artist: 'FreePD', file: 'assets/music/CitySunshine.mp3', equipment: 'bucket', price: 420 },
+    { id: 'battle-ready', title: 'Battle Ready', artist: 'FreePD', file: 'assets/music/BattleReady.mp3', equipment: 'kettle', price: 460 },
   ],
 };
 

@@ -7,7 +7,7 @@ import { addEquipment, recordBest, submitChallenge } from '../core/economy';
 import { advanceSession, challengeEntry, challengeTotal, type Session } from '../core/game';
 import { BaseScene } from '../engine/scenes';
 import { COLOR, addText } from '../engine/ui';
-import { SONGS, songById } from '../data/songs';
+import { equipmentArt, equipmentName, randomEquipment, songById } from '../data/songs';
 import { addQuality, backButton, panel, popText, sellLabel } from './common';
 
 export class SettleScene extends BaseScene {
@@ -42,7 +42,7 @@ export class SettleScene extends BaseScene {
     this.label(640, 84, `${song.title}　打完了！`, { size: 40, weight: 700, align: 'center', color: COLOR.cream, stroke: '#2a1d14' });
     this.showScore(last.points, last.accuracy, last.combo, 190);
 
-    // 掷品质：难度 × 准确率修正
+    // 掷品质：难度 × 准确率修正；器物由这首歌决定，图由品质决定
     const quality = rollQuality(Math.random, this.ctx.config, session.difficulty, last.accuracy);
     this.showForgeResult(songId, quality, () => this.ctx.go('songs'));
   }
@@ -52,8 +52,8 @@ export class SettleScene extends BaseScene {
     const song = songById(songId);
     const config = this.ctx.config;
 
-    panel(this, 640, 428, 700, 330, 0.97);
-    this.art(song.equipment, 420, 420, 170);
+    panel(this, 640, 436, 700, 358, 0.97);
+    this.art(equipmentArt(song.equipment, quality), 420, 420, 176);
 
     // 品质悬念：快闪几档再揭晓
     const rolling = addText(this, 760, 366, '锻造成色……', { size: 30, weight: 700, align: 'center', color: COLOR.gray });
@@ -68,7 +68,7 @@ export class SettleScene extends BaseScene {
       this.sfx(quality === 'legend' ? 'sfx_deliver' : 'sfx_coin', { volume: 0.9 });
     });
 
-    this.label(640, 578, `锻出「${song.equipName}」`, { size: 26, weight: 700, align: 'center' });
+    this.label(640, 556, `锻出「${QUALITY_NAME[quality]}${equipmentName(song.equipment)}」`, { size: 26, weight: 700, align: 'center' });
 
     this.button({
       x: 462, y: 652, label: sellLabel(config, quality), w: 300, h: 64, size: 22,
@@ -85,7 +85,7 @@ export class SettleScene extends BaseScene {
       onClick: () => {
         addEquipment(this.ctx.game.progress, {
           type: song.equipment,
-          name: song.equipName,
+          name: equipmentName(song.equipment),
           quality,
           songId,
         });
@@ -108,7 +108,7 @@ export class SettleScene extends BaseScene {
       size: 40, weight: 700, align: 'center', color: COLOR.cream, stroke: '#2a1d14',
     });
     this.showScore(last.points, last.accuracy, last.combo, 240);
-    this.label(640, 500, `下一首：${next.title}（${next.equipName}）`, { size: 28, weight: 700, align: 'center' });
+    this.label(640, 500, `下一首：${next.title}（${equipmentName(next.equipment)}）`, { size: 28, weight: 700, align: 'center' });
     this.button({
       x: 640, y: 596, label: '继续（空格）', key: 'Space', w: 320, h: 72,
       onClick: () => {
@@ -138,13 +138,13 @@ export class SettleScene extends BaseScene {
       size: 20, align: 'center', color: COLOR.cream, stroke: '#2a1d14',
     });
 
-    // 保底：一件随机类型的传说装备
-    const drop = SONGS[Math.floor(Math.random() * SONGS.length)];
+    // 保底：一件随机器物的传说品质装备
+    const drop = randomEquipment();
     panel(this, 640, 400, 700, 320, 0.97);
-    this.art(drop.equipment, 420, 392, 170);
+    this.art(equipmentArt(drop.art, 'legend'), 420, 392, 176);
     addQuality(this, 'legend', 760, 372, 1.15);
     this.art('fx_glow', 760, 372, 220).setDepth(1).setAlpha(0.35);
-    this.label(640, 538, `保底传说：「${drop.equipName}」`, { size: 26, weight: 700, align: 'center' });
+    this.label(640, 538, `保底传说：「${QUALITY_NAME.legend}${drop.name}」`, { size: 26, weight: 700, align: 'center' });
     this.sfx('sfx_deliver', { volume: 0.9 });
 
     this.button({
@@ -160,7 +160,7 @@ export class SettleScene extends BaseScene {
     this.button({
       x: 818, y: 640, label: '收入装备库', w: 300, h: 64, size: 22, style: 'secondary',
       onClick: () => {
-        addEquipment(progress, { type: drop.equipment, name: drop.equipName, quality: 'legend', songId: drop.id });
+        addEquipment(progress, { type: drop.art, name: drop.name, quality: 'legend', songId: session.songs[0] });
         this.ctx.save.writeRun(this.ctx.game);
         popText(this, 818, 588, '已入库', '#3f8f5f');
         this.time.delayedCall(500, () => this.ctx.go('challenge'));

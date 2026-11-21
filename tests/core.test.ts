@@ -2,7 +2,7 @@
 import { describe, expect, test } from 'vitest';
 import { CONFIG } from '../src/config';
 import { qualityWeights, qualityRank, rollQuality, sellValue, QUALITIES, dropFactor } from '../src/core/drop';
-import { judgeHit, scoreSong, type Verdict } from '../src/core/rhythm';
+import { judgeHit, KeySequence, scoreSong, shortcutScore, type Verdict } from '../src/core/rhythm';
 import {
   addEquipment,
   isUnlocked,
@@ -100,6 +100,33 @@ describe('节奏判定和计分', () => {
   test('最高连击会被 miss 打断', () => {
     const score = scoreSong(CONFIG, ['perfect', 'perfect', 'miss', 'perfect', 'perfect', 'perfect']);
     expect(score.combo).toBe(3);
+  });
+
+  test('彩蛋：按 1 2 1 2 触发，中途错一下从头再来', () => {
+    const seq = new KeySequence(CONFIG.egg.code);
+    expect(seq.push('Digit1')).toBe(false);
+    expect(seq.push('Digit2')).toBe(false);
+    expect(seq.push('Digit1')).toBe(false);
+    expect(seq.push('Digit2')).toBe(true);
+    // 触发以后再敲一遍还能触发
+    expect(seq.push('Digit1')).toBe(false);
+    expect(seq.push('Digit2')).toBe(false);
+    expect(seq.push('Digit1')).toBe(false);
+    expect(seq.push('Digit2')).toBe(true);
+    // 中途按错不会凑巧触发
+    const seq2 = new KeySequence(CONFIG.egg.code);
+    expect(seq2.push('Digit1')).toBe(false);
+    expect(seq2.push('Digit1')).toBe(false);
+    expect(seq2.push('Digit2')).toBe(false);
+    expect(seq2.push('Digit2')).toBe(false);
+  });
+
+  test('彩蛋跳过按 80% 计分', () => {
+    const score = shortcutScore(200, CONFIG.egg.score);
+    expect(score.points).toBe(8000);
+    expect(score.accuracy).toBeCloseTo(0.8);
+    expect(score.combo).toBe(200);
+    expect(score.counts.miss).toBe(0);
   });
 
   test('空谱不除以零', () => {
