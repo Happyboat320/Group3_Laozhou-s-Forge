@@ -78,7 +78,8 @@ export function addButton(scene: Phaser.Scene, options: ButtonOptions) {
   let done = false;
   const press = () => {
     if (done || !button.active) return;
-    playSound(scene, 'sfx_click');
+    // 按钮的“叮”：按反馈调低到原来的一半
+    playSound(scene, 'sfx_click', { volume: 0.5 });
     scene.tweens.add({ targets: button, scale: 0.94, duration: 60, yoyo: true });
     onClick();
   };

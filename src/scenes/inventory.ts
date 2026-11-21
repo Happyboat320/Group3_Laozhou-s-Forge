@@ -4,6 +4,7 @@ import { QUALITY_COLOR, QUALITY_NAME, sellValue } from '../core/drop';
 import { sellEquipment } from '../core/economy';
 import { BaseScene } from '../engine/scenes';
 import { COLOR, addText } from '../engine/ui';
+import { equipmentArt } from '../data/songs';
 import { addCoins, backButton, panel, popText } from './common';
 
 const COLS = 6;
@@ -34,7 +35,7 @@ export class InventoryScene extends BaseScene {
       const x = 178 + col * 188;
       const y = 172 + row * 218;
       panel(this, x, y, 172, 200, 0.94);
-      this.art(item.type, x, y - 34, 104);
+      this.art(equipmentArt(item.type, item.quality), x, y - 34, 104);
       this.label(x, y + 34, item.name, { size: 19, weight: 700, align: 'center' });
       this.label(x, y + 62, QUALITY_NAME[item.quality], {
         size: 17, align: 'center', color: QUALITY_COLOR[item.quality],
