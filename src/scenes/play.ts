@@ -30,8 +30,12 @@ export class PlayScene extends BaseScene {
   private finished = false;
   private track: TrackHandle | null = null;
   private duration = 0;
-  /** 彩蛋：键盘输入 1212（在 create 里初始化，字段初始化时还取不到 ctx） */
-  private egg = new KeySequence([]);
+  /** 彩蛋：1212 跳过（在 create 里初始化，字段初始化时还取不到 ctx） */
+  private eggSkip = new KeySequence([]);
+  /** 彩蛋：3434 自动打歌 */
+  private eggAuto = new KeySequence([]);
+  /** 自动打歌开着没有 */
+  private autoPlay = false;
 
   private comboText!: Phaser.GameObjects.Text;
   private countText!: Phaser.GameObjects.Text;
@@ -65,7 +69,9 @@ export class PlayScene extends BaseScene {
     this.track = null;
     this.duration = chartLength(session.songId, session.difficulty);
     this.keyCaps = [];
-    this.egg = new KeySequence(this.ctx.config.egg.code);
+    this.eggSkip = new KeySequence(this.ctx.config.egg.skip.code);
+    this.eggAuto = new KeySequence(this.ctx.config.egg.auto.code);
+    this.autoPlay = false;
 
     stopBgm();
     this.background('bg_forge');
@@ -81,9 +87,14 @@ export class PlayScene extends BaseScene {
     }
 
     this.onKey((event) => {
-      // 彩蛋：敲出 1 2 1 2 直接过关，按 80% 计分
-      if (this.egg.push(event.code)) {
+      // 彩蛋一：1 2 1 2 直接过关，按 80% 计分
+      if (this.eggSkip.push(event.code)) {
         this.skipByEgg();
+        return;
+      }
+      // 彩蛋二：3 4 3 4 开启 / 关闭自动打歌
+      if (this.eggAuto.push(event.code)) {
+        this.toggleAutoPlay();
         return;
       }
       const lane = LANE_KEYS.indexOf(event.code);
@@ -268,6 +279,30 @@ export class PlayScene extends BaseScene {
     this.ctx.go('settle');
   }
 
+  /** 彩蛋：3 4 3 4 开关自动打歌。 */
+  private toggleAutoPlay() {
+    this.autoPlay = !this.autoPlay;
+    if (this.autoPlay) {
+      this.sfx('sfx_deliver', { volume: 0.7 });
+      popText(this, 640, 300, '彩蛋！铁砧自己会打铁了', '#c8862f', 36);
+    } else {
+      popText(this, 640, 300, '自动打歌已关闭', '#9a8a78', 30);
+    }
+  }
+
+  /** 自动打歌：每帧把该敲的音符替玩家敲掉，偶尔手抖一下判成「不错」。 */
+  private tickAutoPlay() {
+    const { window } = this.ctx.config.rhythm;
+    const now = this.songTime();
+    for (const note of this.notes) {
+      if (note.verdict) continue;
+      const dt = note.time - now;
+      if (dt > 0 || dt < -window.good) continue;
+      const slip = Math.random() < this.ctx.config.egg.auto.slipChance;
+      this.judge(note, slip ? 'good' : 'perfect');
+    }
+  }
+
   /** 彩蛋：直接算过关，成绩按满分的 80%。 */
   private skipByEgg() {
     if (this.finished) return;
@@ -277,7 +312,7 @@ export class PlayScene extends BaseScene {
     this.track?.stop();
     this.sfx('sfx_deliver', { volume: 0.9 });
     popText(this, 640, 300, '彩蛋！这一单算八成', '#c8862f', 40);
-    session.last = shortcutScore(this.notes.length, this.ctx.config.egg.score);
+    session.last = shortcutScore(this.notes.length, this.ctx.config.egg.skip.score);
     this.ctx.save.writeRun(this.ctx.game);
     this.time.delayedCall(900, () => this.ctx.go('settle'));
   }
@@ -296,6 +331,8 @@ export class PlayScene extends BaseScene {
     const { hitLineY, spawnY, window } = this.ctx.config.rhythm;
     const speed = (hitLineY - spawnY) / this.ctx.config.rhythm.approach[this.ctx.game.session?.difficulty ?? 'normal'];
     const now = this.songTime();
+
+    if (this.autoPlay) this.tickAutoPlay();
 
     let pending = 0;
     for (const note of this.notes) {

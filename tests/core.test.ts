@@ -103,7 +103,7 @@ describe('节奏判定和计分', () => {
   });
 
   test('彩蛋：按 1 2 1 2 触发，中途错一下从头再来', () => {
-    const seq = new KeySequence(CONFIG.egg.code);
+    const seq = new KeySequence(CONFIG.egg.skip.code);
     expect(seq.push('Digit1')).toBe(false);
     expect(seq.push('Digit2')).toBe(false);
     expect(seq.push('Digit1')).toBe(false);
@@ -114,15 +114,24 @@ describe('节奏判定和计分', () => {
     expect(seq.push('Digit1')).toBe(false);
     expect(seq.push('Digit2')).toBe(true);
     // 中途按错不会凑巧触发
-    const seq2 = new KeySequence(CONFIG.egg.code);
+    const seq2 = new KeySequence(CONFIG.egg.skip.code);
     expect(seq2.push('Digit1')).toBe(false);
     expect(seq2.push('Digit1')).toBe(false);
     expect(seq2.push('Digit2')).toBe(false);
     expect(seq2.push('Digit2')).toBe(false);
   });
 
+  test('彩蛋：3434 是另一条独立的序列，互不干扰', () => {
+    const auto = new KeySequence(CONFIG.egg.auto.code);
+    ['Digit3', 'Digit4', 'Digit3'].forEach((k) => expect(auto.push(k)).toBe(false));
+    expect(auto.push('Digit4')).toBe(true);
+    // 按自动打歌的键，不会触发跳过的序列
+    const skip = new KeySequence(CONFIG.egg.skip.code);
+    ['Digit3', 'Digit4', 'Digit3', 'Digit4'].forEach((k) => expect(skip.push(k)).toBe(false));
+  });
+
   test('彩蛋跳过按 80% 计分', () => {
-    const score = shortcutScore(200, CONFIG.egg.score);
+    const score = shortcutScore(200, CONFIG.egg.skip.score);
     expect(score.points).toBe(8000);
     expect(score.accuracy).toBeCloseTo(0.8);
     expect(score.combo).toBe(200);
