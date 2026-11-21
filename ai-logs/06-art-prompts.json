@@ -1,0 +1,32 @@
+{
+  "date": "2026-11-21",
+  "tool": "Codex built-in image_gen",
+  "user_request": "克隆小组 dev 分支，就美术方面调用模型生成一些资产，提交 commit 到远端。",
+  "assets": [
+    {
+      "id": "char_forge_flame",
+      "prompt": "Use case: stylized-concept. Asset type: production 2D sprite for an existing ancient Chinese blacksmith casual game. Match attached reference's simple rounded sticker drawing: thick continuous dark brown #5a3220 outline, warm flat colors, just one soft shadow tone and small cream top-left highlights. Avoid photorealism, 3D, elaborate texture, gradients, typography, text, letters, watermark. Square composition, single isolated design centered filling 80 percent, entire silhouette within canvas with generous transparent margins. Real transparent alpha background, no checkerboard drawn in image, no panel or surrounding scenery. Readable downscaled to 80–140 pixels. Subject: a small friendly living furnace flame, teardrop-shaped chubby golden-orange body with three rounded flame tips, red-orange outer rim and warm butter-yellow center; two tiny dark-brown oval eyes, smiling mouth and soft rosy cheeks. No limbs, no accessories, no floor or shadow. The main character for a dodge-water/catch-charcoal minigame. Two tiny detached ember droplets close to the top are okay. Reference 1 is style only, reference 2 is facial mood only; do not draw a hammer or a rectangular ingot.",
+      "transparent_background": true,
+      "references": [
+        "assets/images/item/item_hammer.webp",
+        "assets/images/tool/iron_happy.webp"
+      ]
+    },
+    {
+      "id": "ui_mode_timing",
+      "prompt": "Use case: stylized-concept. Asset type: production 2D sprite for an existing ancient Chinese blacksmith casual game. Match attached reference's simple rounded sticker drawing: thick continuous dark brown #5a3220 outline, warm flat colors, just one soft shadow tone and small cream top-left highlights. Avoid photorealism, 3D, elaborate texture, gradients, typography, text, letters, watermark. Square composition, single isolated design centered filling 80 percent, entire silhouette within canvas with generous transparent margins. Real transparent alpha background, no checkerboard drawn in image, no panel or surrounding scenery. Readable downscaled to 80–140 pixels. Subject: a compact emblem of a single chunky silver-blue blacksmith hammer angled down toward one short hot-orange iron bar resting on a squat blue-gray anvil, exactly one little golden impact star at their point of contact. Above/behind the anvil, a small simple semicircular timing dial: warm cream rim, one short jade-green success segment, single pointer aligned on green. Keep the timing dial secondary and readable, no numbers or tick labels. This is a standalone mode illustration teaching precise timed hammer hits. Use reference only for the hammer's shape/color and rendering language.",
+      "transparent_background": true,
+      "references": [
+        "assets/images/item/item_hammer.webp"
+      ]
+    },
+    {
+      "id": "ui_mode_rhythm",
+      "prompt": "Use case: stylized-concept. Asset type: production 2D sprite for an existing ancient Chinese blacksmith casual game. Match attached reference's simple rounded sticker drawing: thick continuous dark brown #5a3220 outline, warm flat colors, just one soft shadow tone and small cream top-left highlights. Avoid photorealism, 3D, elaborate texture, gradients, typography, text, letters, watermark. Square composition, single isolated design centered filling 80 percent, entire silhouette within canvas with generous transparent margins. Real transparent alpha background, no checkerboard drawn in image, no panel or surrounding scenery. Readable downscaled to 80–140 pixels. Subject: a compact blacksmith rhythm-game emblem: three short parallel vertical copper rails behind a squat blue-gray anvil, three small hot-orange ingots staggered down the rails, one cheerful oversized silver-blue wooden-handled hammer angled at the lower right, and exactly two simple golden musical eighth notes floating beside the rails. Balanced unified silhouette, not a whole game screen, no text or keyboard keycaps. Rails clearly separated, anvil at base. Match reference hammer design and palette.",
+      "transparent_background": true,
+      "references": [
+        "assets/images/item/item_hammer.webp"
+      ]
+    }
+  ]
+}

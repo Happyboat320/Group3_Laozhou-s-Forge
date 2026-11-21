@@ -8,6 +8,11 @@ import { COLOR, addText, hex } from '../engine/ui';
 const CARD_W = 344;
 const CARD_H = 452;
 const GAP = 26;
+const MODE_ART: Record<Mode, string> = {
+  timing: 'ui_mode_timing',
+  rhythm: 'ui_mode_rhythm',
+  heat: 'char_forge_flame',
+};
 
 export class ModeScene extends BaseScene {
   constructor() {
@@ -50,7 +55,7 @@ export class ModeScene extends BaseScene {
     bg.lineStyle(3, hex('#e8893a'), 0.85);
     bg.strokeRoundedRect(-CARD_W / 2, -CARD_H / 2, CARD_W, CARD_H, 18);
 
-    const icon = this.art(mode.icon, 0, -150, mode.id === 'heat' ? 110 : 104);
+    const icon = this.art(MODE_ART[mode.id], 0, -158, 120);
     const name = addText(this, 0, -76, mode.name, { size: 30, weight: 700, align: 'center', color: COLOR.ink });
     const tagline = addText(this, 0, -34, mode.tagline, {
       size: 17, align: 'center', color: COLOR.ink, wrap: 280,

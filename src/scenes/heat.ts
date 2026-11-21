@@ -129,10 +129,9 @@ export class HeatScene extends BaseScene {
   }
 
   private drawFlame() {
-    const glow = this.art('fx_glow', 0, 0, 150).setAlpha(0.85);
-    const core = this.art('iron_orange', 0, 6, 56);
-    const face = addText(this, 0, -2, '火', { size: 22, weight: 700, align: 'center', color: '#fff3d0', stroke: '#8a4416' });
-    this.flame = this.add.container(this.laneX(this.lane), this.playerY, [glow, core, face]).setDepth(10);
+    const glow = this.art('fx_glow', 0, 0, 114).setAlpha(0.28);
+    const core = this.art('char_forge_flame', 0, 0, 86);
+    this.flame = this.add.container(this.laneX(this.lane), this.playerY, [glow, core]).setDepth(10);
     this.tweens.add({ targets: this.flame, scale: 1.06, duration: 420, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
   }
 

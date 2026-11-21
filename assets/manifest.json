@@ -1,5 +1,8 @@
 {
   "images": {
+    "char_forge_flame": "assets/images/char/char_forge_flame.png",
+    "ui_mode_timing": "assets/images/ui/ui_mode_timing.png",
+    "ui_mode_rhythm": "assets/images/ui/ui_mode_rhythm.png",
     "bg_backyard": "assets/images/bg/bg_backyard.webp",
     "bg_bamboo_path": "assets/images/bg/bg_bamboo_path.webp",
     "bg_city_gate": "assets/images/bg/bg_city_gate.webp",
