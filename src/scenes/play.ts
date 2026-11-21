@@ -14,8 +14,6 @@ interface Note {
   time: number;
   verdict: Verdict | null;
   sprite: Phaser.GameObjects.Image;
-  /** 和弦（同一时刻多个音符）时加的黄色边框，跟着音符一起下落 */
-  ring: Phaser.GameObjects.Graphics | null;
 }
 
 const LANE_KEYS = ['KeyA', 'KeyS', 'KeyD', 'KeyF'];
@@ -76,25 +74,10 @@ export class PlayScene extends BaseScene {
     this.drawLanes();
     this.drawHud(song.title, DIFFICULTY_NAME[session.difficulty]);
 
-    // 同一时刻落下来的音符算一组，组内多于一个就给它加黄色边框，提示「要一起敲」
-    const CHORD_EPS = 0.03;
-    for (let i = 0; i < notes.length; i += 1) {
-      const note = notes[i];
-      const chord = notes.filter((n, j) => j !== i && Math.abs(n.time - note.time) <= CHORD_EPS).length > 0;
+    for (const note of notes) {
       const x = this.laneX(note.lane);
       const sprite = this.art('mat_iron_ingot', x, rhythm.spawnY, 58).setDepth(6).setVisible(false);
-      let ring: Phaser.GameObjects.Graphics | null = null;
-      if (chord) {
-        // 黄色描边方框：外发光一层 + 内实线一层，在深色轨道上很显眼
-        ring = this.add.graphics().setDepth(5).setVisible(false);
-        ring.lineStyle(6, 0xffe066, 0.35);
-        ring.strokeRoundedRect(-43, -43, 86, 86, 14);
-        ring.lineStyle(3, 0xffc400, 0.95);
-        ring.strokeRoundedRect(-38, -38, 76, 76, 12);
-        ring.x = x;
-        ring.y = rhythm.spawnY;
-      }
-      this.notes.push({ lane: note.lane, time: note.time, verdict: null, sprite, ring });
+      this.notes.push({ lane: note.lane, time: note.time, verdict: null, sprite });
     }
 
     this.onKey((event) => {
@@ -254,11 +237,6 @@ export class PlayScene extends BaseScene {
       duration: 160,
       onComplete: () => sprite.destroy(),
     });
-    if (note.ring) {
-      const ring = note.ring;
-      note.ring = null;
-      this.tweens.add({ targets: ring, alpha: 0, duration: 200, onComplete: () => ring.destroy() });
-    }
   }
 
   /** 键帽按下的亮光。 */
@@ -324,12 +302,7 @@ export class PlayScene extends BaseScene {
       if (note.verdict) continue;
       const y = hitLineY - (note.time - now) * speed;
       note.sprite.y = y;
-      const visible = y >= 100 && y < hitLineY + 70;
-      note.sprite.setVisible(visible);
-      if (note.ring) {
-        note.ring.y = y;
-        note.ring.setVisible(visible);
-      }
+      note.sprite.setVisible(y >= 100 && y < hitLineY + 70);
       if (now - note.time > window.good) {
         this.judge(note, 'miss');
         continue;

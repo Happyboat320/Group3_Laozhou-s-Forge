@@ -8,13 +8,16 @@ import { backButton, panel } from './common';
 
 export class DifficultyScene extends BaseScene {
   private songId = '';
+  /** 返回选歌时回到哪一张卡片 */
+  private cursor = 0;
 
   constructor() {
     super('difficulty');
   }
 
-  init(data?: { songId?: string }) {
+  init(data?: { songId?: string; cursor?: number }) {
     this.songId = data?.songId ?? '';
+    this.cursor = data?.cursor ?? 0;
   }
 
   create() {
@@ -48,7 +51,7 @@ export class DifficultyScene extends BaseScene {
       });
     });
 
-    backButton(this, '返回（Esc）', () => this.ctx.go('songs'));
+    backButton(this, '返回（Esc）', () => this.ctx.go('songs', { index: this.cursor }));
     this.ctx.debug = () => ({ scene: 'difficulty', songId: this.songId });
   }
 }
