@@ -1,0 +1,7 @@
+﻿node_modules
+dist
+release
+shots
+.npm-cache
+.chrome-profile
+chrome-err.log
