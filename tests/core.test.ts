@@ -23,7 +23,7 @@ import {
   type Outcome,
 } from '../src/core/game';
 import { buildChart } from '../src/core/chart';
-import { MODES, heatScore, modeInfo, rhythmScore } from '../src/core/modes';
+import { MODES, heatScore, modeInfo, modeInstructions, rhythmScore } from '../src/core/modes';
 import { createSave } from '../src/engine/save';
 
 function fakeStorage() {
@@ -146,6 +146,19 @@ describe('品质折算', () => {
 });
 
 describe('三种玩法', () => {
+  test('玩法说明随配置更新时长和锤数，不改动原始说明', () => {
+    const config = structuredClone(CONFIG);
+    config.modes.heat.duration = 42;
+    config.modes.rhythm.duration = 24;
+    config.forge.strikes = 5;
+    const original = structuredClone(MODES);
+    expect(modeInstructions(config, 'heat').join(' ')).toContain('42 秒');
+    expect(modeInstructions(config, 'heat').join(' ')).toContain('净得分');
+    expect(modeInstructions(config, 'rhythm').join(' ')).toContain('24 秒');
+    expect(modeInstructions(config, 'timing').join(' ')).toContain('5 锤');
+    expect(MODES).toEqual(original);
+  });
+
   test('开局记下选的玩法，默认是时机判定', () => {
     expect(newGame(CONFIG).mode).toBe('timing');
     expect(newGame(CONFIG, 'rhythm').mode).toBe('rhythm');

@@ -54,6 +54,8 @@ try {
     await page.waitForFunction(() => globalThis.__game.sceneName === 'shop');
     await page.keyboard.press('Space');
     await page.waitForFunction(() => globalThis.__game.sceneName === 'heat');
+    await page.keyboard.press('Space');
+    await page.waitForFunction(() => globalThis.__game.debug().ready);
     await page.waitForTimeout(700);
     await page.screenshot({ path: `${output}/${name}-heat.png` });
     const laneBefore = await page.evaluate(() => globalThis.__game.debug().lane);

@@ -1,7 +1,7 @@
 ﻿// 选玩法：三种打法用同一间铺子、同一套接单与交付，只有「打造」环节不同。
 import { startBgm } from '../audio/bgm';
 import { newGame } from '../core/game';
-import { MODES, type Mode, type ModeInfo } from '../core/modes';
+import { MODES, modeInstructions, type Mode, type ModeInfo } from '../core/modes';
 import { BaseScene } from '../engine/scenes';
 import { COLOR, addText, hex } from '../engine/ui';
 
@@ -60,7 +60,7 @@ export class ModeScene extends BaseScene {
     const tagline = addText(this, 0, -34, mode.tagline, {
       size: 17, align: 'center', color: COLOR.ink, wrap: 280,
     });
-    const how = addText(this, 0, 30, mode.how.map((line) => `· ${line}`).join('\n'), {
+    const how = addText(this, 0, 30, modeInstructions(this.ctx.config, mode.id).map((line) => `· ${line}`).join('\n'), {
       size: 15, align: 'center', color: COLOR.gray, wrap: 300,
     });
     const chip = this.add.graphics();

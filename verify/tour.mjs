@@ -77,6 +77,11 @@ async function startAutoPlay() {
     const tick = () => {
       if (!window.__auto) return;
       const d = window.__game?.debug?.();
+      if (d?.ready === false) {
+        tap('Space');
+        requestAnimationFrame(tick);
+        return;
+      }
       if (d) {
         // 时机玩法：指针进中心就落手
         if (d.scene === 'forge' && d.phase && d.phase !== 'result' && d.phase !== 'hint' && Math.abs(d.pos) <= 0.08) {

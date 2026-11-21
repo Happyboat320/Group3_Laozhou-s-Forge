@@ -23,7 +23,7 @@ export class ResultScene extends BaseScene {
     this.add.rectangle(640, 360, 1280, 720, 0x1b1714, 0.28);
 
     addText(this, 640, 30, `玩法 · ${modeInfo(game.mode).name}`, { size: 18, align: 'center', color: '#fff6dc', stroke: '#5a3220' });
-    addText(this, 640, 72, '三 天 到 头', { size: 46, weight: 700, align: 'center', color: '#fff6dc', stroke: '#5a3220' });
+    addText(this, 640, 72, game.orderIndex < game.orders.length ? '提 前 收 摊' : '三 天 到 头', { size: 46, weight: 700, align: 'center', color: '#fff6dc', stroke: '#5a3220' });
 
     const laozhou = this.art(win ? 'char_laozhou_happy' : 'char_laozhou_sad', 196, 664, 220).setOrigin(0.5, 1);
     const scaleY = laozhou.scaleY;
@@ -60,9 +60,10 @@ export class ResultScene extends BaseScene {
     this.ctx.save.clearRun();
     addText(this, 796, 564, `最高纪录：${best} 文`, { size: 18, align: 'center', color: COLOR.gray });
 
-    this.button({ x: 712, y: 648, label: '再开一炉（空格）', key: 'Space', w: 320, onClick: () => this.restart() });
+    this.button({ x: 530, y: 648, label: '再玩本玩法（空格）', key: 'Space', w: 260, size: 22, onClick: () => this.restart() });
+    this.button({ x: 802, y: 648, label: '换种打法（M）', key: 'KeyM', w: 250, size: 22, style: 'secondary', onClick: () => this.ctx.go('mode') });
     this.button({
-      x: 1040, y: 648, label: '回封面（Esc）', key: 'Escape', style: 'secondary', w: 260,
+      x: 1064, y: 648, label: '回封面（Esc）', key: 'Escape', style: 'secondary', w: 240, size: 22,
       onClick: () => this.ctx.go('title'),
     });
 
@@ -81,7 +82,7 @@ export class ResultScene extends BaseScene {
   }
 
   private restart() {
-    this.ctx.game = newGame(this.ctx.config);
+    this.ctx.game = newGame(this.ctx.config, this.ctx.game.mode);
     this.ctx.save.clearRun();
     this.ctx.go('shop');
   }

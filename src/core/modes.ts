@@ -51,7 +51,7 @@ export const MODES: ModeInfo[] = [
     how: [
       '你是一团炉火，在五条道之间切换',
       '躲开水珠和蒸汽，接住干柴和炭',
-      '扛住 14 秒，剩多少火算多少成色',
+      '坚持到时间结束，按柴炭净得分评成色',
     ],
     icon: 'tool_furnace_hot',
     key: 'Digit3',
@@ -61,6 +61,14 @@ export const MODES: ModeInfo[] = [
 
 export function modeInfo(id: Mode): ModeInfo {
   return MODES.find((m) => m.id === id) ?? MODES[0];
+}
+
+export function modeInstructions(config: Config, mode: Mode): string[] {
+  const lines = [...modeInfo(mode).how];
+  if (mode === 'timing') lines[1] = `锻打：连敲 ${config.forge.strikes} 锤，每锤都落在绿区`;
+  if (mode === 'rhythm') lines[2] = `坚持 ${config.modes.rhythm.duration} 秒，命中越准成色越好`;
+  if (mode === 'heat') lines[2] = `撑满 ${config.modes.heat.duration} 秒，按净得分评成色`;
+  return lines;
 }
 
 export function isMode(value: unknown): value is Mode {

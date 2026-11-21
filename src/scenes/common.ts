@@ -4,9 +4,42 @@ import type { Delivery, GameState } from '../core/game';
 import { GRADE_BADGE, GRADE_NAME, type Grade } from '../core/forge';
 import type { BaseScene } from '../engine/scenes';
 import { COLOR, hex, addText } from '../engine/ui';
+import { modeInfo, modeInstructions } from '../core/modes';
 
 export const INK = COLOR.ink;
 export const CREAM = COLOR.cream;
+
+export function showModeIntro(scene: BaseScene, onReady: () => void) {
+  if (scene.ctx.game.seenHint) {
+    onReady();
+    return;
+  }
+  const mode = scene.ctx.game.mode;
+  const veil = scene.add.rectangle(640, 360, 1280, 720, 0x1b1714, 0.62).setDepth(60).setInteractive();
+  const card = panel(scene, 640, 350, 800, 460, 0.98).setDepth(61);
+  const title = addText(scene, 640, 180, `${modeInfo(mode).name} · 开炉前看一眼`, {
+    size: 32, weight: 700, align: 'center',
+  }).setDepth(62);
+  const controls = mode === 'heat' ? '← → / A D 换道；炉温为 0 会提前熄火。' : '← ↓ → 对应三条道；同排铁块要同时按。';
+  const body = addText(scene, 640, 244, [...modeInstructions(scene.ctx.config, mode), '', controls].join('\n'), {
+    size: 22, align: 'center', wrap: 710,
+  }).setDepth(62);
+  const hint = addText(scene, 640, 446, '读说明时不计时，也不消耗顾客耐心', {
+    size: 18, align: 'center', color: COLOR.green,
+  }).setDepth(62);
+  const objects = [veil, card, title, body, hint];
+  let closed = false;
+  const begin = () => {
+    if (closed) return;
+    closed = true;
+    for (const object of objects) object.destroy();
+    button.destroy();
+    scene.ctx.game.seenHint = true;
+    scene.ctx.save.writeRun(scene.ctx.game);
+    onReady();
+  };
+  const button = scene.button({ x: 640, y: 518, label: '准备好了（空格）', key: 'Space', onClick: begin }).setDepth(63);
+}
 
 /** 圆角底板，返回 graphics，想动它自己加 tween。 */
 export function panel(scene: BaseScene, x: number, y: number, w: number, h: number, alpha = 0.9, color = '#fff6dc') {

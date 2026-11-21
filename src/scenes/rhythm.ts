@@ -9,7 +9,7 @@ import { currentOrder, nextScene, settle, type Delivery } from '../core/game';
 import { rhythmScore } from '../core/modes';
 import { BaseScene } from '../engine/scenes';
 import { COLOR, addText, hex } from '../engine/ui';
-import { addHud, popText, showDelivery } from './common';
+import { addHud, popText, showDelivery, showModeIntro } from './common';
 
 interface Note {
   lane: number;
@@ -31,6 +31,7 @@ export class RhythmScene extends BaseScene {
   private patienceMax = 1;
   private speed = 1;
   private finished = false;
+  private ready = false;
   private delivery: Delivery | null = null;
 
   private comboText!: Phaser.GameObjects.Text;
@@ -59,6 +60,7 @@ export class RhythmScene extends BaseScene {
     this.patience = order.patience;
     this.patienceMax = order.patience;
     this.finished = false;
+    this.ready = false;
     this.delivery = null;
     this.speed = (cfg.hitLineY - cfg.spawnY) / day.approach;
 
@@ -86,6 +88,7 @@ export class RhythmScene extends BaseScene {
       return {
         scene: 'rhythm',
         mode: 'rhythm',
+        ready: this.ready,
         day: game.day,
         group,
         left: pending.length,
@@ -94,6 +97,7 @@ export class RhythmScene extends BaseScene {
         done: this.finished,
       };
     };
+    showModeIntro(this, () => { this.ready = true; });
   }
 
   // ---- 谱面 --------------------------------------------------------------
@@ -133,7 +137,7 @@ export class RhythmScene extends BaseScene {
   // ---- 打 ---------------------------------------------------------------
 
   private pressLane(lane: number) {
-    if (this.finished) return;
+    if (this.finished || !this.ready) return;
     const { window } = this.ctx.config.modes.rhythm;
     let target: Note | null = null;
     let bestDt = Number.POSITIVE_INFINITY;
@@ -215,7 +219,7 @@ export class RhythmScene extends BaseScene {
   }
 
   update(_time: number, delta: number) {
-    if (this.finished) return;
+    if (this.finished || !this.ready) return;
     const dt = delta / 1000;
     const cfg = this.ctx.config.modes.rhythm;
     this.elapsed += dt;

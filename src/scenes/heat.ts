@@ -6,7 +6,7 @@ import { currentOrder, nextScene, settle, type Delivery } from '../core/game';
 import { heatScore } from '../core/modes';
 import { BaseScene } from '../engine/scenes';
 import { COLOR, addText, hex } from '../engine/ui';
-import { addHud, popText, showDelivery } from './common';
+import { addHud, popText, showDelivery, showModeIntro } from './common';
 
 type DropKind = 'water' | 'steam' | 'wood' | 'charcoal';
 
@@ -42,6 +42,7 @@ export class HeatScene extends BaseScene {
   private patience = 0;
   private patienceMax = 1;
   private finished = false;
+  private ready = false;
   private delivery: Delivery | null = null;
 
   private flame!: Phaser.GameObjects.Container;
@@ -73,6 +74,7 @@ export class HeatScene extends BaseScene {
     this.patience = order.patience;
     this.patienceMax = order.patience;
     this.finished = false;
+    this.ready = false;
     this.delivery = null;
 
     startBgm(this, 0.5);
@@ -92,6 +94,7 @@ export class HeatScene extends BaseScene {
     this.ctx.debug = () => ({
       scene: 'heat',
       mode: 'heat',
+      ready: this.ready,
       lane: this.lane,
       points: this.points,
       heat: Math.round(this.heat),
@@ -99,6 +102,7 @@ export class HeatScene extends BaseScene {
       done: this.finished,
       drops: this.drops.map((d) => ({ lane: d.lane, y: Math.round(d.sprite.y), bad: d.points < 0, points: d.points })),
     });
+    showModeIntro(this, () => { this.ready = true; });
   }
 
   // ---- 画面 --------------------------------------------------------------
@@ -146,7 +150,7 @@ export class HeatScene extends BaseScene {
   // ---- 操作 --------------------------------------------------------------
 
   private move(direction: number) {
-    if (this.finished) return;
+    if (this.finished || !this.ready) return;
     const next = Phaser.Math.Clamp(this.lane + direction, 0, this.ctx.config.modes.heat.lanes - 1);
     if (next === this.lane) return;
     this.lane = next;
@@ -198,7 +202,7 @@ export class HeatScene extends BaseScene {
   // ---- 每帧 --------------------------------------------------------------
 
   update(_time: number, delta: number) {
-    if (this.finished) return;
+    if (this.finished || !this.ready) return;
     const cfg = this.ctx.config.modes.heat;
     const dt = delta / 1000;
     this.elapsed += dt;

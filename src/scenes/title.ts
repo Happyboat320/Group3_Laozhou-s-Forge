@@ -1,8 +1,10 @@
 ﻿// 标题 / 欢迎页：小镇街景、招牌、两侧站着街坊。点街坊会换成开心表情跳一下。
 import Phaser from 'phaser';
 import { startBgm } from '../audio/bgm';
+import { isFinished } from '../core/game';
 import { BaseScene } from '../engine/scenes';
 import { COLOR, FONT, hex } from '../engine/ui';
+import { panel } from './common';
 
 // 左右两组街坊：[角色 ID 前缀, x, 是否在后排]。后排小一点、靠上一点。
 const FOLKS: [string, number, boolean][] = [
@@ -14,16 +16,6 @@ const FOLKS: [string, number, boolean][] = [
   ['char_kid', 1196, true],
   ['char_merchant', 898, false],
   ['char_heroine', 1104, false],
-];
-
-const HOW_TO = [
-  '老周闪了腰，铺子交给你看三天，一天两单。',
-  '',
-  '① 接单：看顾客要什么器型、什么成色。',
-  '② 打造：火候 → 三锤 → 淬火，每次都在绿区按空格。',
-  '③ 交付：成色越好，钱越多，口碑越高。',
-  '',
-  '口碑掉光就提前收摊；三天后口碑够高，老周才传手艺。',
 ];
 
 export class TitleScene extends BaseScene {
@@ -48,31 +40,45 @@ export class TitleScene extends BaseScene {
 
     let y = 336;
     this.button({
-      x: 640, y, label: '开炉（空格）', key: 'Space',
+      x: 640, y, label: '开炉（空格）',
       onClick: () => this.start(),
     });
     const run = this.ctx.save.run;
     if (run) {
       y += 92;
       this.button({
-        x: 640, y, label: '继续（C）', key: 'KeyC', style: 'secondary',
-        onClick: () => {
-          this.ctx.game = run;
-          this.ctx.go('shop');
-        },
+        x: 640, y, label: '继续（C）', style: 'secondary',
+        onClick: () => this.resume(),
       });
     }
     y += 92;
     this.button({
-      x: 640, y, label: '怎么玩（H）', key: 'KeyH', style: 'secondary',
+      x: 640, y, label: '怎么玩（H）', style: 'secondary',
       onClick: () => this.toggleHowTo(),
     });
 
     this.label(640, 694, '点一点街坊打个招呼', { size: 18, align: 'center', color: COLOR.ink }).setAlpha(0.7);
+    this.onKey((event) => {
+      if (this.howTo) {
+        if (['Space', 'Escape', 'KeyH'].includes(event.code)) this.toggleHowTo();
+        return;
+      }
+      if (event.code === 'Space') this.start();
+      if (event.code === 'KeyC') this.resume();
+      if (event.code === 'KeyH') this.toggleHowTo();
+    });
   }
 
   private start() {
+    if (this.howTo) return;
     this.ctx.go('mode');
+  }
+
+  private resume() {
+    const run = this.ctx.save.run;
+    if (this.howTo || !run) return;
+    this.ctx.game = run;
+    this.ctx.go(isFinished(run) ? 'result' : 'shop');
   }
 
   private toggleHowTo() {
@@ -81,12 +87,21 @@ export class TitleScene extends BaseScene {
       this.howTo = null;
       return;
     }
-    const veil = this.add.rectangle(640, 360, 1280, 720, 0x1b1714, 0.55).setDepth(20);
-    const card = this.add.image(640, 344, 'ui_panel_wood').setDisplaySize(760, 470).setDepth(21);
+    const veil = this.add.rectangle(640, 360, 1280, 720, 0x1b1714, 0.55).setDepth(20).setInteractive();
+    const card = panel(this, 640, 344, 940, 490, 0.98).setDepth(21);
     const title = this.add.text(640, 168, '怎么玩', {
       fontFamily: FONT, fontSize: '40px', fontStyle: 'bold', color: COLOR.ink,
     }).setOrigin(0.5).setDepth(22);
-    const body = this.add.text(640, 200, HOW_TO.join('\n'), {
+    const body = this.add.text(640, 210, [
+      '三天六单：接单 → 打造 → 交付，成色影响收入和口碑。',
+      '',
+      '时机判定：空格控制火候、锻打、淬火，越靠绿区中间越好。',
+      `节奏打铁：← ↓ → 对应三路铁块，落线时敲；一单 ${this.ctx.config.modes.rhythm.duration} 秒。`,
+      `火候控制：← → / A D 换道，接柴炭躲冷水，撑满 ${this.ctx.config.modes.heat.duration} 秒。`,
+      '',
+      `口碑为 0 提前收摊；三天后口碑达到 ${this.ctx.config.game.winReputation}，老周才传手艺。`,
+      '每种玩法首次开炉有准备页，看完再开始，不扣耐心。',
+    ].join('\n'), {
       fontFamily: FONT,
       fontSize: '22px',
       color: COLOR.ink,
@@ -94,13 +109,12 @@ export class TitleScene extends BaseScene {
       lineSpacing: 12,
     }).setOrigin(0.5, 0).setDepth(22);
 
-    const hint = this.add.text(640, 548, '按 空格 / 点任意处 关闭', {
+    const hint = this.add.text(640, 548, '空格 / Esc / H / 点任意处关闭，关闭后仍留在封面', {
       fontFamily: FONT, fontSize: '18px', color: COLOR.gray,
     }).setOrigin(0.5).setDepth(22);
 
     const group = this.add.container(0, 0, [veil, card, title, body, hint]).setDepth(20);
-    group.setSize(1280, 720).setInteractive();
-    group.on('pointerdown', () => {
+    veil.on('pointerdown', () => {
       group.destroy();
       this.howTo = null;
     });

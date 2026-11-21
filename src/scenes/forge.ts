@@ -3,6 +3,7 @@ import Phaser from 'phaser';
 import { startBgm } from '../audio/bgm';
 import { GRADE_NAME, difficultyFor, judge, qualityOf, type ForgeResult, type Grade, type Verdict } from '../core/forge';
 import { currentOrder, nextScene, settle, type Delivery } from '../core/game';
+import { modeInstructions } from '../core/modes';
 import { BaseScene } from '../engine/scenes';
 import { COLOR, addText, hex } from '../engine/ui';
 import { VERDICT_COLOR, VERDICT_TEXT, addHud, panel, popText, showDelivery } from './common';
@@ -296,11 +297,9 @@ export class ForgeScene extends BaseScene {
   private showHint() {
     const veil = this.add.rectangle(640, 360, 1280, 720, 0x1b1714, 0.62).setDepth(60);
     const card = panel(this, 640, 344, 760, 420, 0.97).setDepth(61);
-    const title = addText(this, 640, 190, '打造一件东西，出手三次', { size: 34, weight: 700, align: 'center' }).setDepth(62);
+    const title = addText(this, 640, 190, '火候、锻打、淬火：三道工序', { size: 34, weight: 700, align: 'center' }).setDepth(62);
     const body = addText(this, 640, 238, [
-      '火候：把铁烧到火色正好',
-      '锻打：连敲三锤，每锤都落在绿区',
-      '淬火：最后一口气入水',
+      ...modeInstructions(this.ctx.config, 'timing'),
       '',
       '指针进绿区时按空格；越靠中间，成色越好。',
       '顾客的耐心一直在掉，别磨蹭。',
